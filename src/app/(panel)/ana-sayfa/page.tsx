@@ -6,14 +6,14 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDashboardData, getServices } from "@/lib/data";
+import { getDashboardData, getTodayServiceCards } from "@/lib/data";
 import { formatCurrency } from "@/lib/tr";
 import { dashboardCards } from "@/lib/constants";
 
 export default async function DashboardPage() {
   const [dashboard, serviceList] = await Promise.all([
     getDashboardData(),
-    getServices(),
+    getTodayServiceCards(),
   ]);
 
   const chartConfig = [

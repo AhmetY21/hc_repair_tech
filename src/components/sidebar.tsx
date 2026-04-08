@@ -72,6 +72,7 @@ export function Sidebar({
               <div key={item.href} className="space-y-1">
                 <Link
                   href={item.href}
+                  prefetch={false}
                   className={cn(
                     "flex items-center justify-between rounded-2xl border px-3 py-3 transition",
                     active
@@ -95,6 +96,7 @@ export function Sidebar({
                         <Link
                           key={child.href}
                           href={child.href}
+                          prefetch={false}
                           className={cn(
                             "flex items-center justify-between rounded-xl px-3 py-2 text-sm transition",
                             childActive

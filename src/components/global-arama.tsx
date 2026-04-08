@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,11 @@ type SearchItem = {
   href: string;
 };
 
-export function GlobalArama({ items }: { items: SearchItem[] }) {
+export function GlobalArama() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [items, setItems] = useState<SearchItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -31,14 +33,41 @@ export function GlobalArama({ items }: { items: SearchItem[] }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      items.filter((item) => {
-        const searchable = `${item.title} ${item.subtitle}`.toLocaleLowerCase("tr-TR");
-        return searchable.includes(query.toLocaleLowerCase("tr-TR"));
-      }),
-    [items, query],
-  );
+  useEffect(() => {
+    if (!open || query.trim().length < 2) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Arama istegi basarisiz oldu.");
+        }
+
+        const data = (await response.json()) as { items: SearchItem[] };
+        setItems(data.items);
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          setItems([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [open, query]);
 
   if (!open) {
     return (
@@ -68,10 +97,11 @@ export function GlobalArama({ items }: { items: SearchItem[] }) {
           </Button>
         </div>
         <div className="mt-4 space-y-2">
-          {filtered.slice(0, 8).map((item) => (
+          {!loading && items.map((item) => (
             <Link
               key={item.id}
               href={item.href}
+              prefetch={false}
               onClick={() => setOpen(false)}
               className="block rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 transition hover:border-[var(--accent)] hover:bg-[var(--bg-elevated-2)]"
             >
@@ -79,7 +109,17 @@ export function GlobalArama({ items }: { items: SearchItem[] }) {
               <div className="text-sm text-[var(--text-secondary)]">{item.subtitle}</div>
             </Link>
           ))}
-          {!filtered.length ? (
+          {query.trim().length < 2 ? (
+            <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+              Aramak icin en az 2 karakter yazin.
+            </div>
+          ) : null}
+          {loading ? (
+            <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+              Araniyor...
+            </div>
+          ) : null}
+          {!loading && query.trim().length >= 2 && !items.length ? (
             <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
               Eslesen kayit bulunamadi.
             </div>

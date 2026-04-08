@@ -38,13 +38,13 @@ export function ServiceListPage({
         actions={
           <>
             <Button asChild variant="secondary">
-              <Link href="/api/export/servisler">
+              <Link href="/api/export/servisler" prefetch={false}>
                 <Download className="size-4" />
                 Excel'e Aktar
               </Link>
             </Button>
             <Button asChild>
-              <Link href="/servis/kabul">
+              <Link href="/servis/kabul" prefetch={false}>
                 <FileText className="size-4" />
                 Yeni Servis
               </Link>
@@ -60,7 +60,7 @@ export function ServiceListPage({
             description="Bu listede gosterilecek servis kaydi yok. Yeni bir servis olusturdugunuzda burada gorunecek."
             action={
               <Button asChild>
-                <Link href="/servis/kabul">Yeni Servis Olustur</Link>
+                <Link href="/servis/kabul" prefetch={false}>Yeni Servis Olustur</Link>
               </Button>
             }
           />
@@ -95,7 +95,7 @@ export function ServiceListPage({
 
               <div className="flex flex-wrap gap-2">
                 <Button variant="secondary" asChild>
-                  <Link href={`/servis/${service.id}`}>
+                  <Link href={`/servis/${service.id}`} prefetch={false}>
                     <Eye className="size-4" />
                     Detay
                   </Link>

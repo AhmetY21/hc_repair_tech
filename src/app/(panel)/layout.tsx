@@ -2,7 +2,7 @@ import { GlobalArama } from "@/components/global-arama";
 import { Shortcuts } from "@/components/shortcuts";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
-import { getSearchItems, getSidebarCounts } from "@/lib/data";
+import { getSidebarCounts } from "@/lib/data";
 import { requireAuth } from "@/server/auth";
 
 export default async function PanelLayout({
@@ -12,10 +12,7 @@ export default async function PanelLayout({
 }) {
   await requireAuth();
 
-  const [counts, searchItems] = await Promise.all([
-    getSidebarCounts(),
-    getSearchItems(),
-  ]);
+  const counts = await getSidebarCounts();
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] lg:flex">
@@ -25,7 +22,7 @@ export default async function PanelLayout({
         <Topbar />
         <main className="space-y-6 px-4 py-6 lg:px-8">
           <div className="flex flex-wrap gap-3">
-            <GlobalArama items={searchItems} />
+            <GlobalArama />
           </div>
           {children}
         </main>

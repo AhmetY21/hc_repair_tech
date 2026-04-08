@@ -108,6 +108,32 @@ function mapService(service: any) {
   };
 }
 
+function mapServiceListItem(service: any) {
+  return {
+    id: service.id,
+    servisNo: service.servisNo,
+    durum: service.durum,
+    altDurum: service.altDurum,
+    girisTarihi: service.girisTarihi.toISOString(),
+    toplamKdvDahil: toNumber(service.toplamKdvDahil),
+    customer: service.musteri
+      ? {
+          id: service.musteri.id,
+          adSoyad: getCustomerName(service.musteri),
+          telefon: service.musteri.telefon ?? undefined,
+        }
+      : undefined,
+    vehicle: service.arac
+      ? {
+          id: service.arac.id,
+          plaka: service.arac.plaka,
+          marka: service.arac.marka ?? undefined,
+          model: service.arac.model ?? undefined,
+        }
+      : undefined,
+  };
+}
+
 export async function getFirma() {
   const company = await db.firma.findUnique({
     where: { id: "singleton" },
@@ -464,31 +490,72 @@ export async function getTechnicians() {
 
 export async function getDashboardData() {
   const [services, customers, products, expenses] = await Promise.all([
-    getAllServices(),
-    getCustomers(),
-    getProducts(),
-    getExpenses(),
+    db.servis.findMany({
+      where: { deletedAt: null },
+      select: {
+        durum: true,
+        toplamKdvDahil: true,
+        arac: {
+          select: {
+            marka: true,
+          },
+        },
+        kalemler: {
+          select: {
+            ad: true,
+            satirToplami: true,
+          },
+        },
+      },
+    }),
+    db.musteri.findMany({
+      where: { deletedAt: null },
+      select: {
+        bakiye: true,
+      },
+    }),
+    db.urunHizmet.findMany({
+      select: {
+        satisFiyatiKdvDahil: true,
+        kalanMiktar: true,
+        kategori: {
+          select: {
+            ad: true,
+          },
+        },
+      },
+    }),
+    db.masraf.findMany({
+      select: {
+        tutar: true,
+      },
+    }),
   ]);
 
-  const totalRevenue = services.reduce((sum, item) => sum + item.toplamKdvDahil, 0);
-  const totalExpenses = expenses.reduce((sum, item) => sum + item.tutar, 0);
+  const totalRevenue = services.reduce((sum, item) => sum + toNumber(item.toplamKdvDahil), 0);
+  const totalExpenses = expenses.reduce((sum, item) => sum + toNumber(item.tutar), 0);
 
   const markaMap = new Map<string, number>();
   const urunMap = new Map<string, number>();
 
-  services.forEach((service: any) => {
-    const vehicleName = service.vehicle?.marka || "Belirtilmedi";
-    markaMap.set(vehicleName, (markaMap.get(vehicleName) ?? 0) + service.toplamKdvDahil);
+  services.forEach((service) => {
+    const serviceTotal = toNumber(service.toplamKdvDahil);
+    const vehicleName = service.arac?.marka || "Belirtilmedi";
+    markaMap.set(vehicleName, (markaMap.get(vehicleName) ?? 0) + serviceTotal);
 
-    service.kalemler.forEach((item: any) => {
-      urunMap.set(item.ad, (urunMap.get(item.ad) ?? 0) + item.toplam);
+    service.kalemler.forEach((item) => {
+      urunMap.set(item.ad, (urunMap.get(item.ad) ?? 0) + toNumber(item.satirToplami));
     });
   });
 
   const kategoriMap = new Map<string, number>();
-  products.forEach((product: any) => {
-    const category = product.kategori || "Kategorisiz";
-    kategoriMap.set(category, (kategoriMap.get(category) ?? 0) + product.satis * product.stok);
+  products.forEach((product) => {
+    const category = product.kategori?.ad || "Kategorisiz";
+    kategoriMap.set(
+      category,
+      (kategoriMap.get(category) ?? 0) +
+        toNumber(product.satisFiyatiKdvDahil) * toNumber(product.kalanMiktar),
+    );
   });
 
   return {
@@ -504,11 +571,141 @@ export async function getDashboardData() {
     kategoriDagilimi: Array.from(kategoriMap.entries()).map(([name, value]) => ({ name, value })),
     urunDagilimi: Array.from(urunMap.entries()).map(([name, value]) => ({ name, value })),
     bakiyeDagilimi: [
-      { name: "Borclu", value: customers.filter((item) => item.bakiye > 0).length },
-      { name: "Alacakli", value: customers.filter((item) => item.bakiye < 0).length },
-      { name: "Bakiyesiz", value: customers.filter((item) => item.bakiye === 0).length },
+      { name: "Borclu", value: customers.filter((item) => toNumber(item.bakiye) > 0).length },
+      { name: "Alacakli", value: customers.filter((item) => toNumber(item.bakiye) < 0).length },
+      { name: "Bakiyesiz", value: customers.filter((item) => toNumber(item.bakiye) === 0).length },
     ],
   };
+}
+
+export async function getTodayServiceCards(limit = 3) {
+  const todayStart = startOfDay(new Date());
+  const todayEnd = endOfDay(new Date());
+
+  const services = await db.servis.findMany({
+    where: {
+      deletedAt: null,
+      girisTarihi: {
+        gte: todayStart,
+        lte: todayEnd,
+      },
+    },
+    select: {
+      id: true,
+      servisNo: true,
+      durum: true,
+      girisTarihi: true,
+      toplamKdvDahil: true,
+      musteri: {
+        select: {
+          id: true,
+          ad: true,
+          soyad: true,
+          ticariUnvan: true,
+          telefon: true,
+        },
+      },
+      arac: {
+        select: {
+          id: true,
+          plaka: true,
+          marka: true,
+          model: true,
+        },
+      },
+    },
+    orderBy: { girisTarihi: "desc" },
+    take: limit,
+  });
+
+  return services.map((service) => mapServiceListItem(service));
+}
+
+export async function searchEntities(query: string) {
+  const term = query.trim();
+  if (term.length < 2) return [];
+
+  const [customers, vehicles, services] = await Promise.all([
+    db.musteri.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { musteriKodu: { contains: term, mode: "insensitive" } },
+          { ad: { contains: term, mode: "insensitive" } },
+          { soyad: { contains: term, mode: "insensitive" } },
+          { ticariUnvan: { contains: term, mode: "insensitive" } },
+          { telefon: { contains: term, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        musteriKodu: true,
+        ad: true,
+        soyad: true,
+        ticariUnvan: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 4,
+    }),
+    db.arac.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { plaka: { contains: term, mode: "insensitive" } },
+          { marka: { contains: term, mode: "insensitive" } },
+          { model: { contains: term, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        plaka: true,
+        marka: true,
+        model: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 4,
+    }),
+    db.servis.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { servisNo: { contains: term, mode: "insensitive" } },
+          { musteri: { is: { ad: { contains: term, mode: "insensitive" } } } },
+          { musteri: { is: { soyad: { contains: term, mode: "insensitive" } } } },
+          { musteri: { is: { ticariUnvan: { contains: term, mode: "insensitive" } } } },
+          { arac: { is: { plaka: { contains: term, mode: "insensitive" } } } },
+        ],
+      },
+      select: {
+        id: true,
+        servisNo: true,
+        durum: true,
+      },
+      orderBy: { girisTarihi: "desc" },
+      take: 4,
+    }),
+  ]);
+
+  return [
+    ...services.map((service) => ({
+      id: service.id,
+      title: service.servisNo,
+      subtitle: `${service.durum} · Servis`,
+      href: `/servis/${service.id}`,
+    })),
+    ...customers.map((customer) => ({
+      id: customer.id,
+      title: getCustomerName(customer),
+      subtitle: `${customer.musteriKodu} · Musteri`,
+      href: `/musteriler/${customer.id}`,
+    })),
+    ...vehicles.map((vehicle) => ({
+      id: vehicle.id,
+      title: vehicle.plaka,
+      subtitle: `${vehicle.marka ?? ""} ${vehicle.model ?? ""}`.trim() || "Arac",
+      href: "/araclar",
+    })),
+  ].slice(0, 8);
 }
 
 export async function getSearchItems() {

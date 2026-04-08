@@ -26,7 +26,7 @@ export function Topbar() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button asChild variant="secondary">
-            <Link href="/servis/hizli-kabul">
+            <Link href="/servis/hizli-kabul" prefetch={false}>
               <PlusCircle className="size-4" />
               Hizli Kabul
             </Link>
