@@ -38,7 +38,6 @@ Kullanilan env alanlari:
 - `SESSION_SECRET`
 - `NEXT_PUBLIC_FIRMA_ADI`
 - `NEXT_PUBLIC_TEMA`
-- `TZ`
 
 ## Prisma
 
@@ -78,7 +77,6 @@ Vercel Dashboard > Project > Settings > Environment Variables alanina su anahtar
 - `SESSION_SECRET`
 - `NEXT_PUBLIC_FIRMA_ADI`
 - `NEXT_PUBLIC_TEMA`
-- `TZ`
 
 ## Moduller
 
