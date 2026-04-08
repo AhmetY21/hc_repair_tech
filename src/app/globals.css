@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #0a0a0b;
+  --bg-elevated: #141416;
+  --bg-elevated-2: #1c1c1f;
+  --border: #2a2a2e;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent: #e11d2e;
+  --accent-hover: #c81727;
+  --accent-soft: rgba(225, 29, 46, 0.1);
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
+  --info: #3b82f6;
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--text-primary);
+  --primary: var(--accent);
+}
+
+[data-theme="light"] {
+  --bg-base: #f4f4f5;
+  --bg-elevated: #ffffff;
+  --bg-elevated-2: #f4f4f5;
+  --border: #e4e4e7;
+  --text-primary: #111827;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --accent: #e11d2e;
+  --accent-hover: #c81727;
+  --accent-soft: rgba(225, 29, 46, 0.08);
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-elevated);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top right, rgba(225, 29, 46, 0.12), transparent 35%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent 12%),
+    var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+  font-family:
+    "Avenir Next",
+    "Trebuchet MS",
+    "Segoe UI",
+    sans-serif;
+}
+
+::selection {
+  background: rgba(225, 29, 46, 0.28);
+}
+
+.mono {
+  font-family:
+    "SF Mono",
+    "JetBrains Mono",
+    "Menlo",
+    monospace;
+}

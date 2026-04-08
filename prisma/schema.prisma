@@ -1,0 +1,384 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum MusteriTipi {
+  BIREYSEL
+  KURUMSAL
+}
+
+enum ServisDurumu {
+  SERVISE_ALINIYOR
+  BAKIM_ONARIMDA
+  PARCA_BEKLIYOR
+  TESLIME_HAZIR
+  TESLIM_EDILDI
+  IPTAL
+}
+
+enum ServisAltDurumu {
+  MEKANIK
+  ELEKTRIK
+  KAPORTA
+  BOYA
+  HARICI_MEKANIK
+  HARICI_ELEKTRIK
+  HARICI_KAPORTA
+  HARICI_BOYA
+}
+
+enum YakitTipi {
+  BENZIN
+  DIZEL
+  LPG
+  HIBRIT
+  ELEKTRIK
+}
+
+enum VitesTipi {
+  MANUEL
+  OTOMATIK
+}
+
+enum KalemTipi {
+  URUN
+  HIZMET
+}
+
+enum KasaTipi {
+  KASA
+  BANKA
+}
+
+enum HareketTipi {
+  TAHSILAT
+  ODEME
+  MASRAF
+  DUZELTME
+}
+
+enum TahsilatKaynak {
+  SERVIS
+  SERBEST
+}
+
+enum RandevuDurumu {
+  PLANLANDI
+  GELDI
+  IPTAL
+}
+
+model Kullanici {
+  id           String   @id @default(cuid())
+  kullaniciAdi String   @unique
+  sifreHash    String
+  adSoyad      String
+  rol          String   @default("SAHIP")
+  aktif        Boolean  @default(true)
+  sonGiris     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Firma {
+  id                 String   @id @default("singleton")
+  vergiNo            String?
+  firmaAdi           String
+  logoYolu           String?
+  acikAdres          String?
+  sehir              String?
+  telefon            String?
+  email              String?
+  website            String?
+  vergiDairesi       String?
+  iban               String?
+  mersisNo           String?
+  servisKabulNotu    String?
+  servisTeslimNotu   String?
+  hizmetKategorileri String?
+  haricMarkalar      String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Teknisyen {
+  id        String   @id @default(cuid())
+  adSoyad   String
+  telefon   String?
+  uzmanlik  String?
+  aktif     Boolean  @default(true)
+  servisler Servis[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+}
+
+model Musteri {
+  id           String       @id @default(cuid())
+  musteriKodu  String       @unique
+  tip          MusteriTipi  @default(BIREYSEL)
+  ticariUnvan  String?
+  ad           String?
+  soyad        String?
+  vergiTcNo    String?      @unique
+  vergiDairesi String?
+  email        String?
+  telefon      String?
+  adres        String?
+  sehir        String?
+  etiket       String?
+  aciklama     String?
+  bakiye       Decimal      @default(0) @db.Decimal(12, 2)
+  araclar      Arac[]
+  servisler    Servis[]
+  tahsilatlar  Tahsilat[]
+  randevular   Randevu[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  @@index([telefon])
+  @@index([vergiTcNo])
+}
+
+model Arac {
+  id             String      @id @default(cuid())
+  plaka          String      @unique
+  sasiNo         String?     @unique
+  marka          String?
+  seri           String?
+  model          String?
+  modelYili      Int?
+  renk           String?
+  motorNo        String?
+  motorGucu      String?
+  motorHacmi     String?
+  yakitTipi      YakitTipi?
+  vitesTipi      VitesTipi?
+  muayeneBitis   DateTime?
+  notlar         String?
+  trafikSigorta  String?
+  kasko          String?
+  musteriId      String
+  musteri        Musteri     @relation(fields: [musteriId], references: [id])
+  servisler      Servis[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?
+
+  @@index([plaka])
+  @@index([musteriId])
+}
+
+model Servis {
+  id                 String            @id @default(cuid())
+  servisNo           String            @unique
+  durum              ServisDurumu      @default(SERVISE_ALINIYOR)
+  altDurum           ServisAltDurumu?
+  girisTarihi        DateTime          @default(now())
+  teslimTarihi       DateTime?
+  musteriId          String
+  aracId             String
+  teknisyenId        String?
+  musteri            Musteri           @relation(fields: [musteriId], references: [id])
+  arac               Arac              @relation(fields: [aracId], references: [id])
+  teknisyen          Teknisyen?        @relation(fields: [teknisyenId], references: [id])
+  servisDanismani    String?
+  araciGetiren       String?
+  acilisKm           Int?
+  acilisYakitOrani   Int?
+  expertiz           String?
+  musteriTalepleri   String?
+  kapanisKm          Int?
+  kapanisYakitOrani  Int?
+  teslimNotlari      String?
+  kabulImzaMusteri   String?
+  kabulImzaYetkili   String?
+  teslimImzaMusteri  String?
+  musteriyeNot       String?
+  icNotlar           String?
+  toplamKdvHaric     Decimal           @default(0) @db.Decimal(12, 2)
+  toplamKdv          Decimal           @default(0) @db.Decimal(12, 2)
+  toplamKdvDahil     Decimal           @default(0) @db.Decimal(12, 2)
+  kalemler           ServisKalemi[]
+  hariciKalemler     HariciKalem[]
+  fotograflar        Foto[]
+  durumGecmisi       ServisDurumGecmisi[]
+  tahsilatlar        Tahsilat[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+
+  @@index([durum])
+  @@index([girisTarihi])
+  @@index([musteriId])
+  @@index([aracId])
+}
+
+model ServisKalemi {
+  id            String      @id @default(cuid())
+  servisId      String
+  urunHizmetId  String?
+  servis        Servis      @relation(fields: [servisId], references: [id], onDelete: Cascade)
+  urunHizmet    UrunHizmet? @relation(fields: [urunHizmetId], references: [id])
+  tip           KalemTipi   @default(HIZMET)
+  ad            String
+  birim         String      @default("Adet")
+  kdvOrani      Decimal     @default(20) @db.Decimal(5, 2)
+  birimFiyat    Decimal     @default(0) @db.Decimal(12, 2)
+  miktar        Decimal     @default(1) @db.Decimal(12, 2)
+  indirimTutari Decimal     @default(0) @db.Decimal(12, 2)
+  satirToplami  Decimal     @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model HariciKalem {
+  id            String   @id @default(cuid())
+  servisId      String
+  servis        Servis   @relation(fields: [servisId], references: [id], onDelete: Cascade)
+  tip           KalemTipi @default(HIZMET)
+  ad            String
+  birim         String   @default("Adet")
+  maliyet       Decimal  @default(0) @db.Decimal(12, 2)
+  miktar        Decimal  @default(1) @db.Decimal(12, 2)
+  tedarikci     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Foto {
+  id         String   @id @default(cuid())
+  servisId   String
+  servis     Servis   @relation(fields: [servisId], references: [id], onDelete: Cascade)
+  yol        String
+  aciklama   String?
+  sira       Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+model ServisDurumGecmisi {
+  id          String       @id @default(cuid())
+  servisId    String
+  servis      Servis       @relation(fields: [servisId], references: [id], onDelete: Cascade)
+  eskiDurum   ServisDurumu?
+  yeniDurum   ServisDurumu
+  altDurum    ServisAltDurumu?
+  aciklama    String?
+  yapan       String
+  createdAt   DateTime     @default(now())
+}
+
+model UrunKategori {
+  id          String       @id @default(cuid())
+  ad          String       @unique
+  aciklama    String?
+  aktif       Boolean      @default(true)
+  urunler     UrunHizmet[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model UrunHizmet {
+  id                  String          @id @default(cuid())
+  ad                  String
+  kod                 String?         @unique
+  tip                 KalemTipi       @default(URUN)
+  kategoriId          String?
+  kategori            UrunKategori?   @relation(fields: [kategoriId], references: [id])
+  rafKodu             String?
+  kdvOrani            Decimal         @default(20) @db.Decimal(5, 2)
+  alisFiyatiKdvDahil  Decimal         @default(0) @db.Decimal(12, 2)
+  satisFiyatiKdvDahil Decimal         @default(0) @db.Decimal(12, 2)
+  kalanMiktar         Decimal         @default(0) @db.Decimal(12, 2)
+  uyariMiktari        Decimal         @default(0) @db.Decimal(12, 2)
+  aciklama            String?
+  aktif               Boolean         @default(true)
+  servisKalemleri     ServisKalemi[]
+  stokHareketleri     StokHareketi[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+model StokHareketi {
+  id            String      @id @default(cuid())
+  urunHizmetId  String
+  urunHizmet    UrunHizmet  @relation(fields: [urunHizmetId], references: [id])
+  servisId      String?
+  miktar        Decimal     @db.Decimal(12, 2)
+  aciklama      String?
+  createdAt     DateTime    @default(now())
+}
+
+model Kasa {
+  id            String         @id @default(cuid())
+  ad            String
+  tip           KasaTipi       @default(KASA)
+  aciklama      String?
+  aktif         Boolean        @default(true)
+  tahsilatlar   Tahsilat[]
+  masraflar     Masraf[]
+  hareketler    KasaHareketi[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Tahsilat {
+  id            String          @id @default(cuid())
+  musteriId     String?
+  servisId      String?
+  kasaId        String
+  musteri       Musteri?        @relation(fields: [musteriId], references: [id])
+  servis        Servis?         @relation(fields: [servisId], references: [id])
+  kasa          Kasa            @relation(fields: [kasaId], references: [id])
+  kaynak        TahsilatKaynak  @default(SERVIS)
+  tarih         DateTime        @default(now())
+  aciklama      String
+  tutar         Decimal         @db.Decimal(12, 2)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Masraf {
+  id            String      @id @default(cuid())
+  kasaId        String
+  kasa          Kasa        @relation(fields: [kasaId], references: [id])
+  kategori      String
+  tarih         DateTime    @default(now())
+  aciklama      String
+  tutar         Decimal     @db.Decimal(12, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model KasaHareketi {
+  id            String      @id @default(cuid())
+  kasaId        String
+  kasa          Kasa        @relation(fields: [kasaId], references: [id])
+  tip           HareketTipi
+  referansId    String?
+  tarih         DateTime    @default(now())
+  aciklama      String
+  tutar         Decimal     @db.Decimal(12, 2)
+  createdAt     DateTime    @default(now())
+}
+
+model Randevu {
+  id            String         @id @default(cuid())
+  musteriId     String?
+  musteri       Musteri?       @relation(fields: [musteriId], references: [id])
+  baslangic     DateTime
+  bitis         DateTime?
+  durum         RandevuDurumu  @default(PLANLANDI)
+  telefon       String?
+  plaka         String?
+  aciklama      String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
