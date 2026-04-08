@@ -5,17 +5,10 @@ import { Para } from "@/components/para";
 import { Tarih } from "@/components/tarih";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
-import { getAllServices } from "@/lib/data";
+import { getCollectionEntries } from "@/lib/data";
 
 export default async function CollectionsPage() {
-  const services = await getAllServices();
-  const payments = services.flatMap((service) =>
-    service.tahsilatlar.map((payment: { id: string; tarih: string; aciklama: string; kasa: string; tutar: number }) => ({
-      ...payment,
-      servisNo: service.servisNo,
-      musteri: service.customer?.adSoyad,
-    })),
-  );
+  const payments = await getCollectionEntries();
 
   return (
     <div className="space-y-6">

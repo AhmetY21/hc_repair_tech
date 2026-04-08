@@ -8,10 +8,11 @@ import {
   VitesTipi,
   YakitTipi,
 } from "@prisma/client";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { DATA_TAGS } from "@/lib/cache-tags";
 import { db } from "@/server/db";
 
 const quickIntakeSchema = z.object({
@@ -272,6 +273,16 @@ function revalidateServicePaths(serviceId?: string) {
   }
 }
 
+function revalidateServiceTags() {
+  revalidateTag(DATA_TAGS.sidebar);
+  revalidateTag(DATA_TAGS.dashboard);
+  revalidateTag(DATA_TAGS.services);
+  revalidateTag(DATA_TAGS.customers);
+  revalidateTag(DATA_TAGS.vehicles);
+  revalidateTag(DATA_TAGS.collections);
+  revalidateTag(DATA_TAGS.accounts);
+}
+
 export async function createQuickIntakeAction(formData: FormData) {
   const parsed = quickIntakeSchema.parse({
     plaka: getString(formData, "plaka"),
@@ -305,6 +316,7 @@ export async function createQuickIntakeAction(formData: FormData) {
     },
   });
 
+  revalidateServiceTags();
   revalidateServicePaths(service.id);
   redirect(`/servis/${service.id}`);
 }
@@ -357,6 +369,7 @@ export async function createServiceAction(formData: FormData) {
     },
   });
 
+  revalidateServiceTags();
   revalidateServicePaths(service.id);
   redirect(`/servis/${service.id}`);
 }
@@ -396,6 +409,7 @@ export async function updateServiceStatusAction(formData: FormData) {
     },
   });
 
+  revalidateServiceTags();
   revalidateServicePaths(parsed.servisId);
 }
 
@@ -448,5 +462,6 @@ export async function addCollectionAction(formData: FormData) {
     },
   });
 
+  revalidateServiceTags();
   revalidateServicePaths(parsed.servisId);
 }

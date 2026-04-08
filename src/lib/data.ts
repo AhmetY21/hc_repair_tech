@@ -1,5 +1,7 @@
+import { unstable_cache } from "next/cache";
 import { endOfDay, startOfDay } from "date-fns";
 
+import { DATA_TAGS } from "@/lib/cache-tags";
 import { db } from "@/server/db";
 
 function toNumber(value: unknown) {
@@ -134,10 +136,41 @@ function mapServiceListItem(service: any) {
   };
 }
 
+const serviceListSelect = {
+  id: true,
+  servisNo: true,
+  durum: true,
+  altDurum: true,
+  girisTarihi: true,
+  toplamKdvDahil: true,
+  musteri: {
+    select: {
+      id: true,
+      ad: true,
+      soyad: true,
+      ticariUnvan: true,
+      telefon: true,
+    },
+  },
+  arac: {
+    select: {
+      id: true,
+      plaka: true,
+      marka: true,
+      model: true,
+    },
+  },
+} as const;
+
 export async function getFirma() {
-  const company = await db.firma.findUnique({
-    where: { id: "singleton" },
-  });
+  const company = await unstable_cache(
+    async () =>
+      db.firma.findUnique({
+        where: { id: "singleton" },
+      }),
+    ["firma"],
+    { tags: [DATA_TAGS.firma], revalidate: 300 },
+  )();
 
   return {
     firmaAdi: company?.firmaAdi ?? "",
@@ -158,47 +191,77 @@ export async function getFirma() {
 }
 
 export async function getSidebarCounts() {
-  const todayStart = startOfDay(new Date());
-  const todayEnd = endOfDay(new Date());
+  return unstable_cache(
+    async () => {
+      const todayStart = startOfDay(new Date());
+      const todayEnd = endOfDay(new Date());
 
-  const [bugun, gecmis, grouped] = await Promise.all([
-    db.servis.count({
-      where: {
-        girisTarihi: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
-      },
-    }),
-    db.servis.count(),
-    db.servis.groupBy({
-      by: ["durum"],
-      _count: {
-        durum: true,
-      },
-    }),
-  ]);
+      const [bugun, gecmis, grouped] = await Promise.all([
+        db.servis.count({
+          where: {
+            deletedAt: null,
+            girisTarihi: {
+              gte: todayStart,
+              lte: todayEnd,
+            },
+          },
+        }),
+        db.servis.count({
+          where: { deletedAt: null },
+        }),
+        db.servis.groupBy({
+          by: ["durum"],
+          where: { deletedAt: null },
+          _count: {
+            durum: true,
+          },
+        }),
+      ]);
 
-  const counts = Object.fromEntries(
-    grouped.map((item) => [item.durum, item._count.durum]),
-  );
+      const counts = Object.fromEntries(
+        grouped.map((item) => [item.durum, item._count.durum]),
+      );
 
-  return {
-    bugun,
-    gecmis,
-    SERVISE_ALINIYOR: counts.SERVISE_ALINIYOR ?? 0,
-    BAKIM_ONARIMDA: counts.BAKIM_ONARIMDA ?? 0,
-    PARCA_BEKLIYOR: counts.PARCA_BEKLIYOR ?? 0,
-    TESLIME_HAZIR: counts.TESLIME_HAZIR ?? 0,
-    TESLIM_EDILDI: counts.TESLIM_EDILDI ?? 0,
-  };
+      return {
+        bugun,
+        gecmis,
+        SERVISE_ALINIYOR: counts.SERVISE_ALINIYOR ?? 0,
+        BAKIM_ONARIMDA: counts.BAKIM_ONARIMDA ?? 0,
+        PARCA_BEKLIYOR: counts.PARCA_BEKLIYOR ?? 0,
+        TESLIME_HAZIR: counts.TESLIME_HAZIR ?? 0,
+        TESLIM_EDILDI: counts.TESLIM_EDILDI ?? 0,
+      };
+    },
+    ["sidebar-counts"],
+    { tags: [DATA_TAGS.sidebar, DATA_TAGS.services], revalidate: 30 },
+  )();
 }
 
 export async function getCustomers() {
-  const customers = await db.musteri.findMany({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "desc" },
-  });
+  const customers = await unstable_cache(
+    async () =>
+      db.musteri.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          musteriKodu: true,
+          tip: true,
+          ticariUnvan: true,
+          ad: true,
+          soyad: true,
+          vergiTcNo: true,
+          email: true,
+          telefon: true,
+          sehir: true,
+          etiket: true,
+          aciklama: true,
+          bakiye: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ["customers"],
+    { tags: [DATA_TAGS.customers], revalidate: 120 },
+  )();
 
   return customers.map((customer) => ({
     id: customer.id,
@@ -266,11 +329,36 @@ export async function getCustomerById(id: string) {
 }
 
 export async function getVehicles() {
-  const vehicles = await db.arac.findMany({
-    where: { deletedAt: null },
-    include: { musteri: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const vehicles = await unstable_cache(
+    async () =>
+      db.arac.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          plaka: true,
+          marka: true,
+          seri: true,
+          model: true,
+          modelYili: true,
+          sasiNo: true,
+          motorNo: true,
+          yakitTipi: true,
+          vitesTipi: true,
+          motorGucu: true,
+          renk: true,
+          musteri: {
+            select: {
+              ticariUnvan: true,
+              ad: true,
+              soyad: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ["vehicles"],
+    { tags: [DATA_TAGS.vehicles], revalidate: 120 },
+  )();
 
   return vehicles.map((vehicle) => ({
     id: vehicle.id,
@@ -317,54 +405,62 @@ export async function getVehicleByPlate(plate: string) {
 }
 
 export async function getServices(status?: string) {
-  const todayStart = startOfDay(new Date());
-  const todayEnd = endOfDay(new Date());
-
-  const services = await db.servis.findMany({
-    where: {
-      deletedAt: null,
-      ...(status ? { durum: status as never } : {}),
-    },
-    include: {
-      musteri: true,
-      arac: true,
-      teknisyen: true,
-      kalemler: true,
-      hariciKalemler: true,
-      tahsilatlar: { include: { kasa: true } },
-      durumGecmisi: true,
-    },
-    orderBy: { girisTarihi: "desc" },
-  });
-
-  const mapped = services.map((service) => mapService(service));
-
   if (!status) {
-    return mapped.filter((service) => {
-      const date = new Date(service.girisTarihi);
-      return date >= todayStart && date <= todayEnd;
-    });
+    return unstable_cache(
+      async () => {
+        const todayStart = startOfDay(new Date());
+        const todayEnd = endOfDay(new Date());
+
+        const services = await db.servis.findMany({
+          where: {
+            deletedAt: null,
+            girisTarihi: {
+              gte: todayStart,
+              lte: todayEnd,
+            },
+          },
+          select: serviceListSelect,
+          orderBy: { girisTarihi: "desc" },
+        });
+
+        return services.map((service) => mapServiceListItem(service));
+      },
+      ["services-today"],
+      { tags: [DATA_TAGS.services], revalidate: 30 },
+    )();
   }
 
-  return mapped;
+  return unstable_cache(
+    async () => {
+      const services = await db.servis.findMany({
+        where: {
+          deletedAt: null,
+          durum: status as never,
+        },
+        select: serviceListSelect,
+        orderBy: { girisTarihi: "desc" },
+      });
+
+      return services.map((service) => mapServiceListItem(service));
+    },
+    ["services-by-status", status],
+    { tags: [DATA_TAGS.services], revalidate: 30 },
+  )();
 }
 
 export async function getAllServices() {
-  const services = await db.servis.findMany({
-    where: { deletedAt: null },
-    include: {
-      musteri: true,
-      arac: true,
-      teknisyen: true,
-      kalemler: true,
-      hariciKalemler: true,
-      tahsilatlar: { include: { kasa: true } },
-      durumGecmisi: true,
-    },
-    orderBy: { girisTarihi: "desc" },
-  });
+  const services = await unstable_cache(
+    async () =>
+      db.servis.findMany({
+        where: { deletedAt: null },
+        select: serviceListSelect,
+        orderBy: { girisTarihi: "desc" },
+      }),
+    ["services-all"],
+    { tags: [DATA_TAGS.services], revalidate: 30 },
+  )();
 
-  return services.map((service) => mapService(service));
+  return services.map((service) => mapServiceListItem(service));
 }
 
 export async function getServiceById(id: string) {
@@ -385,10 +481,30 @@ export async function getServiceById(id: string) {
 }
 
 export async function getProducts() {
-  const products = await db.urunHizmet.findMany({
-    include: { kategori: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const products = await unstable_cache(
+    async () =>
+      db.urunHizmet.findMany({
+        select: {
+          id: true,
+          ad: true,
+          kod: true,
+          tip: true,
+          kategori: {
+            select: { ad: true },
+          },
+          rafKodu: true,
+          kdvOrani: true,
+          alisFiyatiKdvDahil: true,
+          satisFiyatiKdvDahil: true,
+          kalanMiktar: true,
+          uyariMiktari: true,
+          aktif: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ["products"],
+    { tags: [DATA_TAGS.products], revalidate: 300 },
+  )();
 
   return products.map((product) => ({
     id: product.id,
@@ -407,13 +523,30 @@ export async function getProducts() {
 }
 
 export async function getAccounts() {
-  const accounts = await db.kasa.findMany({
-    include: {
-      tahsilatlar: true,
-      masraflar: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const accounts = await unstable_cache(
+    async () =>
+      db.kasa.findMany({
+        select: {
+          id: true,
+          ad: true,
+          tip: true,
+          aciklama: true,
+          tahsilatlar: {
+            select: {
+              tutar: true,
+            },
+          },
+          masraflar: {
+            select: {
+              tutar: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ["accounts"],
+    { tags: [DATA_TAGS.accounts, DATA_TAGS.collections, DATA_TAGS.expenses], revalidate: 60 },
+  )();
 
   return accounts.map((account) => ({
     id: account.id,
@@ -427,10 +560,28 @@ export async function getAccounts() {
 }
 
 export async function getExpenses() {
-  const expenses = await db.masraf.findMany({
-    include: { kasa: true },
-    orderBy: { tarih: "desc" },
-  });
+  const expenses = await unstable_cache(
+    async () =>
+      db.masraf.findMany({
+        select: {
+          id: true,
+          kategori: true,
+          kasaId: true,
+          tarih: true,
+          aciklama: true,
+          tutar: true,
+          kasa: {
+            select: {
+              id: true,
+              ad: true,
+            },
+          },
+        },
+        orderBy: { tarih: "desc" },
+      }),
+    ["expenses"],
+    { tags: [DATA_TAGS.expenses, DATA_TAGS.accounts], revalidate: 60 },
+  )();
 
   return expenses.map((expense) => ({
     id: expense.id,
@@ -459,9 +610,14 @@ export async function getStandaloneSales() {
 }
 
 export async function getAppointments() {
-  const appointments = await db.randevu.findMany({
-    orderBy: { baslangic: "asc" },
-  });
+  const appointments = await unstable_cache(
+    async () =>
+      db.randevu.findMany({
+        orderBy: { baslangic: "asc" },
+      }),
+    ["appointments"],
+    { tags: [DATA_TAGS.appointments], revalidate: 120 },
+  )();
 
   return appointments.map((appointment) => ({
     id: appointment.id,
@@ -474,10 +630,22 @@ export async function getAppointments() {
 }
 
 export async function getTechnicians() {
-  const technicians = await db.teknisyen.findMany({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "desc" },
-  });
+  const technicians = await unstable_cache(
+    async () =>
+      db.teknisyen.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          adSoyad: true,
+          telefon: true,
+          uzmanlik: true,
+          aktif: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ["technicians"],
+    { tags: [DATA_TAGS.technicians], revalidate: 120 },
+  )();
 
   return technicians.map((technician) => ({
     id: technician.id,
@@ -489,136 +657,178 @@ export async function getTechnicians() {
 }
 
 export async function getDashboardData() {
-  const [services, customers, products, expenses] = await Promise.all([
-    db.servis.findMany({
-      where: { deletedAt: null },
-      select: {
-        durum: true,
-        toplamKdvDahil: true,
-        arac: {
+  return unstable_cache(
+    async () => {
+      const [services, customers, products, expenses] = await Promise.all([
+        db.servis.findMany({
+          where: { deletedAt: null },
           select: {
-            marka: true,
+            durum: true,
+            toplamKdvDahil: true,
+            arac: {
+              select: {
+                marka: true,
+              },
+            },
+            kalemler: {
+              select: {
+                ad: true,
+                satirToplami: true,
+              },
+            },
           },
-        },
-        kalemler: {
+        }),
+        db.musteri.findMany({
+          where: { deletedAt: null },
           select: {
-            ad: true,
-            satirToplami: true,
+            bakiye: true,
           },
-        },
-      },
-    }),
-    db.musteri.findMany({
-      where: { deletedAt: null },
-      select: {
-        bakiye: true,
-      },
-    }),
-    db.urunHizmet.findMany({
-      select: {
-        satisFiyatiKdvDahil: true,
-        kalanMiktar: true,
-        kategori: {
+        }),
+        db.urunHizmet.findMany({
           select: {
-            ad: true,
+            satisFiyatiKdvDahil: true,
+            kalanMiktar: true,
+            kategori: {
+              select: {
+                ad: true,
+              },
+            },
           },
+        }),
+        db.masraf.findMany({
+          select: {
+            tutar: true,
+          },
+        }),
+      ]);
+
+      const totalRevenue = services.reduce((sum, item) => sum + toNumber(item.toplamKdvDahil), 0);
+      const totalExpenses = expenses.reduce((sum, item) => sum + toNumber(item.tutar), 0);
+
+      const markaMap = new Map<string, number>();
+      const urunMap = new Map<string, number>();
+
+      services.forEach((service) => {
+        const serviceTotal = toNumber(service.toplamKdvDahil);
+        const vehicleName = service.arac?.marka || "Belirtilmedi";
+        markaMap.set(vehicleName, (markaMap.get(vehicleName) ?? 0) + serviceTotal);
+
+        service.kalemler.forEach((item) => {
+          urunMap.set(item.ad, (urunMap.get(item.ad) ?? 0) + toNumber(item.satirToplami));
+        });
+      });
+
+      const kategoriMap = new Map<string, number>();
+      products.forEach((product) => {
+        const category = product.kategori?.ad || "Kategorisiz";
+        kategoriMap.set(
+          category,
+          (kategoriMap.get(category) ?? 0) +
+            toNumber(product.satisFiyatiKdvDahil) * toNumber(product.kalanMiktar),
+        );
+      });
+
+      return {
+        kpis: {
+          gelir: totalRevenue,
+          servis: totalRevenue,
+          satis: 0,
+          gider: totalExpenses,
+          teslimEdilen: services.filter((item) => item.durum === "TESLIM_EDILDI").length,
+          acikServis: services.filter((item) => item.durum !== "TESLIM_EDILDI").length,
         },
-      },
-    }),
-    db.masraf.findMany({
-      select: {
-        tutar: true,
-      },
-    }),
-  ]);
-
-  const totalRevenue = services.reduce((sum, item) => sum + toNumber(item.toplamKdvDahil), 0);
-  const totalExpenses = expenses.reduce((sum, item) => sum + toNumber(item.tutar), 0);
-
-  const markaMap = new Map<string, number>();
-  const urunMap = new Map<string, number>();
-
-  services.forEach((service) => {
-    const serviceTotal = toNumber(service.toplamKdvDahil);
-    const vehicleName = service.arac?.marka || "Belirtilmedi";
-    markaMap.set(vehicleName, (markaMap.get(vehicleName) ?? 0) + serviceTotal);
-
-    service.kalemler.forEach((item) => {
-      urunMap.set(item.ad, (urunMap.get(item.ad) ?? 0) + toNumber(item.satirToplami));
-    });
-  });
-
-  const kategoriMap = new Map<string, number>();
-  products.forEach((product) => {
-    const category = product.kategori?.ad || "Kategorisiz";
-    kategoriMap.set(
-      category,
-      (kategoriMap.get(category) ?? 0) +
-        toNumber(product.satisFiyatiKdvDahil) * toNumber(product.kalanMiktar),
-    );
-  });
-
-  return {
-    kpis: {
-      gelir: totalRevenue,
-      servis: totalRevenue,
-      satis: 0,
-      gider: totalExpenses,
-      teslimEdilen: services.filter((item) => item.durum === "TESLIM_EDILDI").length,
-      acikServis: services.filter((item) => item.durum !== "TESLIM_EDILDI").length,
+        markaDagilimi: Array.from(markaMap.entries()).map(([name, value]) => ({ name, value })),
+        kategoriDagilimi: Array.from(kategoriMap.entries()).map(([name, value]) => ({ name, value })),
+        urunDagilimi: Array.from(urunMap.entries()).map(([name, value]) => ({ name, value })),
+        bakiyeDagilimi: [
+          { name: "Borclu", value: customers.filter((item) => toNumber(item.bakiye) > 0).length },
+          { name: "Alacakli", value: customers.filter((item) => toNumber(item.bakiye) < 0).length },
+          { name: "Bakiyesiz", value: customers.filter((item) => toNumber(item.bakiye) === 0).length },
+        ],
+      };
     },
-    markaDagilimi: Array.from(markaMap.entries()).map(([name, value]) => ({ name, value })),
-    kategoriDagilimi: Array.from(kategoriMap.entries()).map(([name, value]) => ({ name, value })),
-    urunDagilimi: Array.from(urunMap.entries()).map(([name, value]) => ({ name, value })),
-    bakiyeDagilimi: [
-      { name: "Borclu", value: customers.filter((item) => toNumber(item.bakiye) > 0).length },
-      { name: "Alacakli", value: customers.filter((item) => toNumber(item.bakiye) < 0).length },
-      { name: "Bakiyesiz", value: customers.filter((item) => toNumber(item.bakiye) === 0).length },
-    ],
-  };
+    ["dashboard"],
+    {
+      tags: [
+        DATA_TAGS.dashboard,
+        DATA_TAGS.services,
+        DATA_TAGS.customers,
+        DATA_TAGS.products,
+        DATA_TAGS.expenses,
+      ],
+      revalidate: 60,
+    },
+  )();
 }
 
 export async function getTodayServiceCards(limit = 3) {
-  const todayStart = startOfDay(new Date());
-  const todayEnd = endOfDay(new Date());
+  const services = await unstable_cache(
+    async () => {
+      const todayStart = startOfDay(new Date());
+      const todayEnd = endOfDay(new Date());
 
-  const services = await db.servis.findMany({
-    where: {
-      deletedAt: null,
-      girisTarihi: {
-        gte: todayStart,
-        lte: todayEnd,
-      },
-    },
-    select: {
-      id: true,
-      servisNo: true,
-      durum: true,
-      girisTarihi: true,
-      toplamKdvDahil: true,
-      musteri: {
-        select: {
-          id: true,
-          ad: true,
-          soyad: true,
-          ticariUnvan: true,
-          telefon: true,
+      return db.servis.findMany({
+        where: {
+          deletedAt: null,
+          girisTarihi: {
+            gte: todayStart,
+            lte: todayEnd,
+          },
         },
-      },
-      arac: {
-        select: {
-          id: true,
-          plaka: true,
-          marka: true,
-          model: true,
-        },
-      },
+        select: serviceListSelect,
+        orderBy: { girisTarihi: "desc" },
+        take: limit,
+      });
     },
-    orderBy: { girisTarihi: "desc" },
-    take: limit,
-  });
+    ["today-service-cards", String(limit)],
+    { tags: [DATA_TAGS.services, DATA_TAGS.dashboard], revalidate: 30 },
+  )();
 
   return services.map((service) => mapServiceListItem(service));
+}
+
+export async function getCollectionEntries() {
+  const payments = await unstable_cache(
+    async () =>
+      db.tahsilat.findMany({
+        select: {
+          id: true,
+          tarih: true,
+          aciklama: true,
+          tutar: true,
+          kasa: {
+            select: {
+              ad: true,
+            },
+          },
+          servis: {
+            select: {
+              servisNo: true,
+              musteri: {
+                select: {
+                  ticariUnvan: true,
+                  ad: true,
+                  soyad: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { tarih: "desc" },
+      }),
+    ["collection-entries"],
+    { tags: [DATA_TAGS.collections, DATA_TAGS.accounts], revalidate: 30 },
+  )();
+
+  return payments.map((payment) => ({
+    id: payment.id,
+    tarih: payment.tarih.toISOString(),
+    aciklama: payment.aciklama,
+    tutar: toNumber(payment.tutar),
+    kasa: payment.kasa.ad,
+    servisNo: payment.servis?.servisNo ?? "Serbest Tahsilat",
+    musteri: payment.servis?.musteri ? getCustomerName(payment.servis.musteri) : "Bilinmiyor",
+  }));
 }
 
 export async function searchEntities(query: string) {
