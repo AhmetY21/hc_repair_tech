@@ -2,7 +2,6 @@
 
 import {
   MusteriTipi,
-  Prisma,
   ServisAltDurumu,
   ServisDurumu,
   TahsilatKaynak,
@@ -117,8 +116,8 @@ function mapTransmissionType(value: string | null) {
   }
 }
 
-async function generateCustomerCode(tx: Prisma.TransactionClient) {
-  const latest = await tx.musteri.findFirst({
+async function generateCustomerCode() {
+  const latest = await db.musteri.findFirst({
     where: {
       musteriKodu: {
         startsWith: "MUS-",
@@ -133,9 +132,9 @@ async function generateCustomerCode(tx: Prisma.TransactionClient) {
   return `MUS-${String(nextNumber).padStart(4, "0")}`;
 }
 
-async function generateServiceNo(tx: Prisma.TransactionClient) {
+async function generateServiceNo() {
   const prefix = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-  const latest = await tx.servis.findFirst({
+  const latest = await db.servis.findFirst({
     where: {
       servisNo: {
         startsWith: prefix,
@@ -150,8 +149,8 @@ async function generateServiceNo(tx: Prisma.TransactionClient) {
   return `${prefix}${String(nextNumber).padStart(4, "0")}`;
 }
 
-async function findCustomerByPhone(tx: Prisma.TransactionClient, phone: string) {
-  const candidates = await tx.musteri.findMany({
+async function findCustomerByPhone(phone: string) {
+  const candidates = await db.musteri.findMany({
     where: {
       deletedAt: null,
       telefon: {
@@ -166,7 +165,6 @@ async function findCustomerByPhone(tx: Prisma.TransactionClient, phone: string) 
 }
 
 async function upsertCustomerAndVehicle(
-  tx: Prisma.TransactionClient,
   input: {
     plaka: string;
     musteriAdi: string;
@@ -187,18 +185,18 @@ async function upsertCustomerAndVehicle(
   const normalizedPhone = normalizePhone(input.telefon);
   const { ad, soyad } = splitCustomerName(input.musteriAdi);
 
-  const existingVehicle = await tx.arac.findUnique({
+  const existingVehicle = await db.arac.findUnique({
     where: { plaka: normalizedPlate },
     include: { musteri: true },
   });
 
   const existingCustomer =
     existingVehicle?.musteri ??
-    (normalizedPhone ? await findCustomerByPhone(tx, normalizedPhone) : null);
+    (normalizedPhone ? await findCustomerByPhone(normalizedPhone) : null);
 
   const customer =
     existingCustomer
-      ? await tx.musteri.update({
+      ? await db.musteri.update({
           where: { id: existingCustomer.id },
           data: {
             ad,
@@ -209,9 +207,9 @@ async function upsertCustomerAndVehicle(
             adres: input.adres,
           },
         })
-      : await tx.musteri.create({
+      : await db.musteri.create({
           data: {
-            musteriKodu: await generateCustomerCode(tx),
+            musteriKodu: await generateCustomerCode(),
             tip: MusteriTipi.BIREYSEL,
             ad,
             soyad,
@@ -224,7 +222,7 @@ async function upsertCustomerAndVehicle(
 
   const vehicle =
     existingVehicle
-      ? await tx.arac.update({
+      ? await db.arac.update({
           where: { id: existingVehicle.id },
           data: {
             musteriId: customer.id,
@@ -238,7 +236,7 @@ async function upsertCustomerAndVehicle(
             vitesTipi: input.vitesTipi,
           },
         })
-      : await tx.arac.create({
+      : await db.arac.create({
           data: {
             musteriId: customer.id,
             plaka: normalizedPlate,
@@ -281,34 +279,30 @@ export async function createQuickIntakeAction(formData: FormData) {
     isAciklamasi: getString(formData, "isAciklamasi"),
   });
 
-  const service = await db.$transaction(async (tx) => {
-    const { customer, vehicle } = await upsertCustomerAndVehicle(tx, {
-      plaka: parsed.plaka,
-      musteriAdi: "Yeni Musteri",
-      telefon: parsed.telefon,
-    });
+  const { customer, vehicle } = await upsertCustomerAndVehicle({
+    plaka: parsed.plaka,
+    musteriAdi: "Yeni Musteri",
+    telefon: parsed.telefon,
+  });
 
-    const createdService = await tx.servis.create({
-      data: {
-        servisNo: await generateServiceNo(tx),
-        durum: ServisDurumu.SERVISE_ALINIYOR,
-        musteriId: customer.id,
-        aracId: vehicle.id,
-        musteriTalepleri: parsed.isAciklamasi,
-        servisDanismani: process.env.ADMIN_USERNAME ?? "kivanc",
-      },
-    });
+  const service = await db.servis.create({
+    data: {
+      servisNo: await generateServiceNo(),
+      durum: ServisDurumu.SERVISE_ALINIYOR,
+      musteriId: customer.id,
+      aracId: vehicle.id,
+      musteriTalepleri: parsed.isAciklamasi,
+      servisDanismani: process.env.ADMIN_USERNAME ?? "kivanc",
+    },
+  });
 
-    await tx.servisDurumGecmisi.create({
-      data: {
-        servisId: createdService.id,
-        yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
-        aciklama: "Hizli kabul ile servis kaydi olusturuldu.",
-        yapan: process.env.ADMIN_USERNAME ?? "kivanc",
-      },
-    });
-
-    return createdService;
+  await db.servisDurumGecmisi.create({
+    data: {
+      servisId: service.id,
+      yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
+      aciklama: "Hizli kabul ile servis kaydi olusturuldu.",
+      yapan: process.env.ADMIN_USERNAME ?? "kivanc",
+    },
   });
 
   revalidateServicePaths(service.id);
@@ -323,48 +317,44 @@ export async function createServiceAction(formData: FormData) {
     talepler: getString(formData, "talepler"),
   });
 
-  const service = await db.$transaction(async (tx) => {
-    const { customer, vehicle } = await upsertCustomerAndVehicle(tx, {
-      plaka: parsed.plaka,
-      musteriAdi: parsed.musteriAdi,
-      telefon: parsed.telefon,
-      email: getOptionalString(formData, "email"),
-      vergiTcNo: getOptionalString(formData, "vergiTcNo"),
-      adres: getOptionalString(formData, "adres"),
-      sasiNo: getOptionalString(formData, "sasiNo"),
-      marka: getOptionalString(formData, "marka"),
-      seri: getOptionalString(formData, "seri"),
-      model: getOptionalString(formData, "model"),
-      modelYili: parseOptionalInt(getString(formData, "modelYili")),
-      yakitTipi: mapFuelType(getOptionalString(formData, "yakitTipi")),
-      vitesTipi: mapTransmissionType(getOptionalString(formData, "vitesTipi")),
-    });
+  const { customer, vehicle } = await upsertCustomerAndVehicle({
+    plaka: parsed.plaka,
+    musteriAdi: parsed.musteriAdi,
+    telefon: parsed.telefon,
+    email: getOptionalString(formData, "email"),
+    vergiTcNo: getOptionalString(formData, "vergiTcNo"),
+    adres: getOptionalString(formData, "adres"),
+    sasiNo: getOptionalString(formData, "sasiNo"),
+    marka: getOptionalString(formData, "marka"),
+    seri: getOptionalString(formData, "seri"),
+    model: getOptionalString(formData, "model"),
+    modelYili: parseOptionalInt(getString(formData, "modelYili")),
+    yakitTipi: mapFuelType(getOptionalString(formData, "yakitTipi")),
+    vitesTipi: mapTransmissionType(getOptionalString(formData, "vitesTipi")),
+  });
 
-    const createdService = await tx.servis.create({
-      data: {
-        servisNo: await generateServiceNo(tx),
-        durum: ServisDurumu.SERVISE_ALINIYOR,
-        musteriId: customer.id,
-        aracId: vehicle.id,
-        servisDanismani: process.env.ADMIN_USERNAME ?? "kivanc",
-        araciGetiren: getOptionalString(formData, "araciGetiren"),
-        acilisKm: parseOptionalInt(getString(formData, "acilisKm")),
-        acilisYakitOrani: parseOptionalInt(getString(formData, "acilisYakitOrani")),
-        musteriTalepleri: parsed.talepler,
-        musteriyeNot: getOptionalString(formData, "musteriyeNot"),
-      },
-    });
+  const service = await db.servis.create({
+    data: {
+      servisNo: await generateServiceNo(),
+      durum: ServisDurumu.SERVISE_ALINIYOR,
+      musteriId: customer.id,
+      aracId: vehicle.id,
+      servisDanismani: process.env.ADMIN_USERNAME ?? "kivanc",
+      araciGetiren: getOptionalString(formData, "araciGetiren"),
+      acilisKm: parseOptionalInt(getString(formData, "acilisKm")),
+      acilisYakitOrani: parseOptionalInt(getString(formData, "acilisYakitOrani")),
+      musteriTalepleri: parsed.talepler,
+      musteriyeNot: getOptionalString(formData, "musteriyeNot"),
+    },
+  });
 
-    await tx.servisDurumGecmisi.create({
-      data: {
-        servisId: createdService.id,
-        yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
-        aciklama: "Klasik servis kabul formu ile kayit olusturuldu.",
-        yapan: process.env.ADMIN_USERNAME ?? "kivanc",
-      },
-    });
-
-    return createdService;
+  await db.servisDurumGecmisi.create({
+    data: {
+      servisId: service.id,
+      yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
+      aciklama: "Klasik servis kabul formu ile kayit olusturuldu.",
+      yapan: process.env.ADMIN_USERNAME ?? "kivanc",
+    },
   });
 
   revalidateServicePaths(service.id);
@@ -379,33 +369,31 @@ export async function updateServiceStatusAction(formData: FormData) {
     teknisyenId: getString(formData, "teknisyenId") || undefined,
   });
 
-  await db.$transaction(async (tx) => {
-    const currentService = await tx.servis.findUnique({
-      where: { id: parsed.servisId },
-      select: { durum: true },
-    });
+  const currentService = await db.servis.findUnique({
+    where: { id: parsed.servisId },
+    select: { durum: true },
+  });
 
-    await tx.servis.update({
-      where: { id: parsed.servisId },
-      data: {
-        durum: parsed.durum,
-        altDurum: parsed.altDurum ?? null,
-        teknisyenId: parsed.teknisyenId || null,
-        teslimTarihi:
-          parsed.durum === ServisDurumu.TESLIM_EDILDI ? new Date() : undefined,
-      },
-    });
+  await db.servis.update({
+    where: { id: parsed.servisId },
+    data: {
+      durum: parsed.durum,
+      altDurum: parsed.altDurum ?? null,
+      teknisyenId: parsed.teknisyenId || null,
+      teslimTarihi:
+        parsed.durum === ServisDurumu.TESLIM_EDILDI ? new Date() : undefined,
+    },
+  });
 
-    await tx.servisDurumGecmisi.create({
-      data: {
-        servisId: parsed.servisId,
-        eskiDurum: currentService?.durum,
-        yeniDurum: parsed.durum,
-        altDurum: parsed.altDurum ?? null,
-        aciklama: "Durum servis islemleri ekranindan guncellendi.",
-        yapan: process.env.ADMIN_USERNAME ?? "kivanc",
-      },
-    });
+  await db.servisDurumGecmisi.create({
+    data: {
+      servisId: parsed.servisId,
+      eskiDurum: currentService?.durum,
+      yeniDurum: parsed.durum,
+      altDurum: parsed.altDurum ?? null,
+      aciklama: "Durum servis islemleri ekranindan guncellendi.",
+      yapan: process.env.ADMIN_USERNAME ?? "kivanc",
+    },
   });
 
   revalidateServicePaths(parsed.servisId);
@@ -419,47 +407,45 @@ export async function addCollectionAction(formData: FormData) {
     kasa: getString(formData, "kasa"),
   });
 
-  await db.$transaction(async (tx) => {
-    const service = await tx.servis.findUnique({
-      where: { id: parsed.servisId },
-      select: { id: true, musteriId: true },
-    });
+  const service = await db.servis.findUnique({
+    where: { id: parsed.servisId },
+    select: { id: true, musteriId: true },
+  });
 
-    if (!service) {
-      throw new Error("Servis kaydi bulunamadi.");
-    }
+  if (!service) {
+    throw new Error("Servis kaydi bulunamadi.");
+  }
 
-    const account = await tx.kasa.findFirst({
-      where: { ad: parsed.kasa },
-      select: { id: true },
-    });
+  const account = await db.kasa.findFirst({
+    where: { ad: parsed.kasa },
+    select: { id: true },
+  });
 
-    if (!account) {
-      throw new Error("Tahsilat hesabi bulunamadi.");
-    }
+  if (!account) {
+    throw new Error("Tahsilat hesabi bulunamadi.");
+  }
 
-    const amount = parseMoney(parsed.tutar);
+  const amount = parseMoney(parsed.tutar);
 
-    await tx.tahsilat.create({
-      data: {
-        servisId: service.id,
-        musteriId: service.musteriId,
-        kasaId: account.id,
-        kaynak: TahsilatKaynak.SERVIS,
-        aciklama: parsed.aciklama,
-        tutar: amount,
-      },
-    });
+  await db.tahsilat.create({
+    data: {
+      servisId: service.id,
+      musteriId: service.musteriId,
+      kasaId: account.id,
+      kaynak: TahsilatKaynak.SERVIS,
+      aciklama: parsed.aciklama,
+      tutar: amount,
+    },
+  });
 
-    await tx.kasaHareketi.create({
-      data: {
-        kasaId: account.id,
-        tip: "TAHSILAT",
-        referansId: service.id,
-        aciklama: parsed.aciklama,
-        tutar: amount,
-      },
-    });
+  await db.kasaHareketi.create({
+    data: {
+      kasaId: account.id,
+      tip: "TAHSILAT",
+      referansId: service.id,
+      aciklama: parsed.aciklama,
+      tutar: amount,
+    },
   });
 
   revalidateServicePaths(parsed.servisId);
