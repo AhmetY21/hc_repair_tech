@@ -449,18 +449,19 @@ export async function getServices(status?: string) {
 }
 
 export async function getAllServices() {
-  const services = await unstable_cache(
-    async () =>
-      db.servis.findMany({
+  return unstable_cache(
+    async () => {
+      const services = await db.servis.findMany({
         where: { deletedAt: null },
         select: serviceListSelect,
         orderBy: { girisTarihi: "desc" },
-      }),
+      });
+
+      return services.map((service) => mapServiceListItem(service));
+    },
     ["services-all"],
     { tags: [DATA_TAGS.services], revalidate: 30 },
   )();
-
-  return services.map((service) => mapServiceListItem(service));
 }
 
 export async function getServiceById(id: string) {
@@ -560,9 +561,9 @@ export async function getAccounts() {
 }
 
 export async function getExpenses() {
-  const expenses = await unstable_cache(
-    async () =>
-      db.masraf.findMany({
+  return unstable_cache(
+    async () => {
+      const expenses = await db.masraf.findMany({
         select: {
           id: true,
           kategori: true,
@@ -578,25 +579,26 @@ export async function getExpenses() {
           },
         },
         orderBy: { tarih: "desc" },
-      }),
+      });
+
+      return expenses.map((expense) => ({
+        id: expense.id,
+        kategori: expense.kategori,
+        kasaId: expense.kasaId,
+        tarih: expense.tarih.toISOString(),
+        aciklama: expense.aciklama,
+        tutar: toNumber(expense.tutar),
+        kasa: expense.kasa
+          ? {
+              id: expense.kasa.id,
+              ad: expense.kasa.ad,
+            }
+          : undefined,
+      }));
+    },
     ["expenses"],
     { tags: [DATA_TAGS.expenses, DATA_TAGS.accounts], revalidate: 60 },
   )();
-
-  return expenses.map((expense) => ({
-    id: expense.id,
-    kategori: expense.kategori,
-    kasaId: expense.kasaId,
-    tarih: expense.tarih.toISOString(),
-    aciklama: expense.aciklama,
-    tutar: toNumber(expense.tutar),
-    kasa: expense.kasa
-      ? {
-          id: expense.kasa.id,
-          ad: expense.kasa.ad,
-        }
-      : undefined,
-  }));
 }
 
 export async function getStandaloneSales() {
@@ -610,23 +612,24 @@ export async function getStandaloneSales() {
 }
 
 export async function getAppointments() {
-  const appointments = await unstable_cache(
-    async () =>
-      db.randevu.findMany({
+  return unstable_cache(
+    async () => {
+      const appointments = await db.randevu.findMany({
         orderBy: { baslangic: "asc" },
-      }),
+      });
+
+      return appointments.map((appointment) => ({
+        id: appointment.id,
+        baslangic: appointment.baslangic.toISOString(),
+        durum: appointment.durum,
+        plaka: appointment.plaka ?? "",
+        telefon: appointment.telefon ?? "",
+        aciklama: appointment.aciklama ?? "",
+      }));
+    },
     ["appointments"],
     { tags: [DATA_TAGS.appointments], revalidate: 120 },
   )();
-
-  return appointments.map((appointment) => ({
-    id: appointment.id,
-    baslangic: appointment.baslangic.toISOString(),
-    durum: appointment.durum,
-    plaka: appointment.plaka ?? "",
-    telefon: appointment.telefon ?? "",
-    aciklama: appointment.aciklama ?? "",
-  }));
 }
 
 export async function getTechnicians() {
@@ -762,12 +765,12 @@ export async function getDashboardData() {
 }
 
 export async function getTodayServiceCards(limit = 3) {
-  const services = await unstable_cache(
+  return unstable_cache(
     async () => {
       const todayStart = startOfDay(new Date());
       const todayEnd = endOfDay(new Date());
 
-      return db.servis.findMany({
+      const services = await db.servis.findMany({
         where: {
           deletedAt: null,
           girisTarihi: {
@@ -779,18 +782,18 @@ export async function getTodayServiceCards(limit = 3) {
         orderBy: { girisTarihi: "desc" },
         take: limit,
       });
+
+      return services.map((service) => mapServiceListItem(service));
     },
     ["today-service-cards", String(limit)],
     { tags: [DATA_TAGS.services, DATA_TAGS.dashboard], revalidate: 30 },
   )();
-
-  return services.map((service) => mapServiceListItem(service));
 }
 
 export async function getCollectionEntries() {
-  const payments = await unstable_cache(
-    async () =>
-      db.tahsilat.findMany({
+  return unstable_cache(
+    async () => {
+      const payments = await db.tahsilat.findMany({
         select: {
           id: true,
           tarih: true,
@@ -815,20 +818,21 @@ export async function getCollectionEntries() {
           },
         },
         orderBy: { tarih: "desc" },
-      }),
+      });
+
+      return payments.map((payment) => ({
+        id: payment.id,
+        tarih: payment.tarih.toISOString(),
+        aciklama: payment.aciklama,
+        tutar: toNumber(payment.tutar),
+        kasa: payment.kasa.ad,
+        servisNo: payment.servis?.servisNo ?? "Serbest Tahsilat",
+        musteri: payment.servis?.musteri ? getCustomerName(payment.servis.musteri) : "Bilinmiyor",
+      }));
+    },
     ["collection-entries"],
     { tags: [DATA_TAGS.collections, DATA_TAGS.accounts], revalidate: 30 },
   )();
-
-  return payments.map((payment) => ({
-    id: payment.id,
-    tarih: payment.tarih.toISOString(),
-    aciklama: payment.aciklama,
-    tutar: toNumber(payment.tutar),
-    kasa: payment.kasa.ad,
-    servisNo: payment.servis?.servisNo ?? "Serbest Tahsilat",
-    musteri: payment.servis?.musteri ? getCustomerName(payment.servis.musteri) : "Bilinmiyor",
-  }));
 }
 
 export async function searchEntities(query: string) {
