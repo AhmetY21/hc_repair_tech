@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, MessageCircleMore, PlusCircle } from "lucide-react";
+import { LogOut, PlusCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -30,16 +30,6 @@ export function Topbar() {
               <PlusCircle className="size-4" />
               Hizli Kabul
             </Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <a
-              href="https://wa.me/905555555555?text=Araciniz%20hakkinda%20bilgi%20vermeye%20haziriz."
-              target="_blank"
-              rel="noreferrer"
-            >
-              <MessageCircleMore className="size-4" />
-              Musteriye Bildir
-            </a>
           </Button>
           <form action={logoutAction}>
             <Button variant="ghost" type="submit">

@@ -6,16 +6,11 @@ import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { navigation } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-export function Sidebar({
-  counts,
-}: {
-  counts: Record<string, number>;
-}) {
+export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -85,7 +80,6 @@ export function Sidebar({
                     {Icon ? <Icon className="size-4 shrink-0" /> : null}
                     {!collapsed && <span className="text-sm font-medium">{item.title}</span>}
                   </div>
-                  {!collapsed && item.badgeKey ? <Badge>{counts[item.badgeKey] ?? 0}</Badge> : null}
                 </Link>
 
                 {!collapsed && item.children ? (
@@ -109,7 +103,6 @@ export function Sidebar({
                             <ChevronRight className="size-3" />
                             {child.title}
                           </span>
-                          {child.badgeKey ? <Badge>{counts[child.badgeKey] ?? 0}</Badge> : null}
                         </Link>
                       );
                     })}
