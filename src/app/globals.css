@@ -60,6 +60,12 @@ body {
     sans-serif;
 }
 
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 ::selection {
   background: rgba(225, 29, 46, 0.28);
 }
