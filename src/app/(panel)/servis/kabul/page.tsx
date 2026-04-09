@@ -9,13 +9,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { serviceTemplates } from "@/lib/constants";
 import { createServiceAction } from "@/server/actions/servis";
 
-export default function ClassicIntakePage() {
+export default async function ClassicIntakePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hata?: string }>;
+}) {
+  const params = await searchParams;
+  const hasValidationError = params.hata === "validation";
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Servis Kabul"
         description="Klasik 4 sekmeli kabul akisini tek sayfada kademeli bloklarla hizlandiran MVP formu."
       />
+      {hasValidationError ? (
+        <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
+          Kayit olusturulamadi. Telefon en az 10 hane, talep metni en az 5 karakter olmali.
+        </p>
+      ) : null}
 
       <form action={createServiceAction} className="space-y-6">
         <Card>
@@ -49,7 +61,7 @@ export default function ClassicIntakePage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Input name="musteriAdi" placeholder="Ad Soyad / Ticari Unvan" required />
-            <Input name="telefon" placeholder="Telefon" required />
+            <Input name="telefon" placeholder="Telefon" minLength={10} inputMode="tel" required />
             <Input name="email" placeholder="Email" />
             <Input name="vergiTcNo" placeholder="Vergi / TC" />
             <Input name="adres" placeholder="Adres" className="md:col-span-2 xl:col-span-4" />
@@ -66,7 +78,12 @@ export default function ClassicIntakePage() {
               <Input name="acilisYakitOrani" placeholder="Yakit %" />
               <Input name="araciGetiren" placeholder="Araci Getiren" />
             </div>
-            <Textarea name="talepler" placeholder="Musteri talepleri ve yapilacak isler" required />
+            <Textarea
+              name="talepler"
+              placeholder="Musteri talepleri ve yapilacak isler"
+              minLength={5}
+              required
+            />
             <div className="flex flex-wrap gap-2">
               {serviceTemplates.map((template) => (
                 <span

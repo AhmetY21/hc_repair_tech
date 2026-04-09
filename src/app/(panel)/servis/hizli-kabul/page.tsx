@@ -7,13 +7,25 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createQuickIntakeAction } from "@/server/actions/servis";
 
-export default function QuickIntakePage() {
+export default async function QuickIntakePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hata?: string }>;
+}) {
+  const params = await searchParams;
+  const hasValidationError = params.hata === "validation";
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Hizli Kabul"
         description="MVP'nin 5 saniyelik servis kabul akisi: plaka, telefon ve yapilacak is tanimi yeterli."
       />
+      {hasValidationError ? (
+        <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
+          Kayit olusturulamadi. Telefon en az 10 hane ve is tanimi en az 5 karakter olmali.
+        </p>
+      ) : null}
 
       <Card className="overflow-hidden">
         <CardContent className="grid gap-8 p-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
@@ -31,10 +43,18 @@ export default function QuickIntakePage() {
 
           <form action={createQuickIntakeAction} className="space-y-4 rounded-[1.75rem] border border-[var(--border)] bg-[var(--bg-elevated)] p-6">
             <Input name="plaka" placeholder="Plaka" className="h-14 text-lg uppercase" required />
-            <Input name="telefon" placeholder="Musteri telefonu" className="h-14 text-lg" required />
+            <Input
+              name="telefon"
+              placeholder="Musteri telefonu"
+              minLength={10}
+              inputMode="tel"
+              className="h-14 text-lg"
+              required
+            />
             <Textarea
               name="isAciklamasi"
               placeholder="Yapilacak is veya musteri sikayeti"
+              minLength={5}
               className="min-h-40 text-lg"
               required
             />

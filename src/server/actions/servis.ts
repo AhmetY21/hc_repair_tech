@@ -284,16 +284,19 @@ function revalidateServiceTags() {
 }
 
 export async function createQuickIntakeAction(formData: FormData) {
-  const parsed = quickIntakeSchema.parse({
+  const parsed = quickIntakeSchema.safeParse({
     plaka: getString(formData, "plaka"),
-    telefon: getString(formData, "telefon"),
+    telefon: normalizePhone(getString(formData, "telefon")),
     isAciklamasi: getString(formData, "isAciklamasi"),
   });
+  if (!parsed.success) {
+    redirect("/servis/hizli-kabul?hata=validation");
+  }
 
   const { customer, vehicle } = await upsertCustomerAndVehicle({
-    plaka: parsed.plaka,
+    plaka: parsed.data.plaka,
     musteriAdi: "Yeni Musteri",
-    telefon: parsed.telefon,
+    telefon: parsed.data.telefon,
   });
 
   const service = await db.servis.create({
@@ -302,7 +305,7 @@ export async function createQuickIntakeAction(formData: FormData) {
       durum: ServisDurumu.SERVISE_ALINIYOR,
       musteriId: customer.id,
       aracId: vehicle.id,
-      musteriTalepleri: parsed.isAciklamasi,
+      musteriTalepleri: parsed.data.isAciklamasi,
       servisDanismani: process.env.ADMIN_USERNAME ?? "kivanc",
     },
   });
@@ -322,17 +325,20 @@ export async function createQuickIntakeAction(formData: FormData) {
 }
 
 export async function createServiceAction(formData: FormData) {
-  const parsed = serviceSchema.parse({
+  const parsed = serviceSchema.safeParse({
     plaka: getString(formData, "plaka"),
     musteriAdi: getString(formData, "musteriAdi"),
-    telefon: getString(formData, "telefon"),
+    telefon: normalizePhone(getString(formData, "telefon")),
     talepler: getString(formData, "talepler"),
   });
+  if (!parsed.success) {
+    redirect("/servis/kabul?hata=validation");
+  }
 
   const { customer, vehicle } = await upsertCustomerAndVehicle({
-    plaka: parsed.plaka,
-    musteriAdi: parsed.musteriAdi,
-    telefon: parsed.telefon,
+    plaka: parsed.data.plaka,
+    musteriAdi: parsed.data.musteriAdi,
+    telefon: parsed.data.telefon,
     email: getOptionalString(formData, "email"),
     vergiTcNo: getOptionalString(formData, "vergiTcNo"),
     adres: getOptionalString(formData, "adres"),
@@ -355,7 +361,7 @@ export async function createServiceAction(formData: FormData) {
       araciGetiren: getOptionalString(formData, "araciGetiren"),
       acilisKm: parseOptionalInt(getString(formData, "acilisKm")),
       acilisYakitOrani: parseOptionalInt(getString(formData, "acilisYakitOrani")),
-      musteriTalepleri: parsed.talepler,
+      musteriTalepleri: parsed.data.talepler,
       musteriyeNot: getOptionalString(formData, "musteriyeNot"),
     },
   });
