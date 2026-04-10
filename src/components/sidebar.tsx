@@ -10,32 +10,19 @@ import { Button } from "@/components/ui/button";
 import { navigation } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-const serviceStaticSegments = new Set([
-  "kabul",
-  "hizli-kabul",
-  "bugun",
-  "gecmis",
-  "alinan",
-  "bakimda",
-  "parca-bekleyen",
-  "teslime-hazir",
-  "teslim-edildi",
-]);
-
-function isServiceDetailPath(pathname: string) {
-  const segments = pathname.split("/").filter(Boolean);
-  if (segments[0] !== "servis" || !segments[1]) {
+function isServiceSectionPath(pathname: string) {
+  if (!pathname.startsWith("/servis")) {
     return false;
   }
 
-  return !serviceStaticSegments.has(segments[1]);
+  return pathname !== "/servis/hizli-kabul";
 }
 
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const serviceDetailPath = isServiceDetailPath(pathname);
+  const serviceSectionPath = isServiceSectionPath(pathname);
 
   const items = useMemo(() => navigation, []);
 
@@ -85,7 +72,7 @@ export function Sidebar() {
             const active =
               pathname === item.href ||
               pathname.startsWith(`${item.href}/`) ||
-              (item.href === "/servis/kabul" && serviceDetailPath);
+              (item.href === "/servis" && serviceSectionPath);
             const Icon = item.icon;
 
             return (
@@ -112,8 +99,7 @@ export function Sidebar() {
                     {item.children.map((child) => {
                       const childActive =
                         pathname === child.href ||
-                        pathname.startsWith(`${child.href}/`) ||
-                        (child.href === "/servis/kabul" && serviceDetailPath);
+                        pathname.startsWith(`${child.href}/`);
                       return (
                         <Link
                           key={child.href}

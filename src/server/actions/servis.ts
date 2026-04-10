@@ -276,12 +276,9 @@ function revalidateServicePaths(serviceId?: string) {
 
 function revalidateServiceTags() {
   revalidateTag(DATA_TAGS.sidebar);
-  revalidateTag(DATA_TAGS.dashboard);
   revalidateTag(DATA_TAGS.services);
   revalidateTag(DATA_TAGS.customers);
   revalidateTag(DATA_TAGS.vehicles);
-  revalidateTag(DATA_TAGS.collections);
-  revalidateTag(DATA_TAGS.accounts);
 }
 
 function isServiceNoUniqueError(error: unknown) {
@@ -323,6 +320,8 @@ export async function createQuickIntakeAction(formData: FormData) {
     redirect("/servis/hizli-kabul?hata=validation");
   }
 
+  let serviceId = "";
+
   try {
     const { customer, vehicle } = await upsertCustomerAndVehicle({
       plaka: parsed.data.plaka,
@@ -337,6 +336,7 @@ export async function createQuickIntakeAction(formData: FormData) {
       musteriTalepleri: parsed.data.isAciklamasi,
       servisDanismani: process.env.ADMIN_USERNAME ?? "kivanc",
     });
+    serviceId = service.id;
 
     await db.servisDurumGecmisi.create({
       data: {
@@ -346,14 +346,14 @@ export async function createQuickIntakeAction(formData: FormData) {
         yapan: process.env.ADMIN_USERNAME ?? "kivanc",
       },
     });
-
-    revalidateServiceTags();
-    revalidateServicePaths(service.id);
-    redirect(`/servis/${service.id}`);
   } catch (error) {
     console.error("Hizli kabul kaydi olusturulamadi", error);
     redirect("/servis/hizli-kabul?hata=save");
   }
+
+  revalidateServiceTags();
+  revalidateServicePaths(serviceId);
+  redirect(`/servis/${serviceId}`);
 }
 
 export async function createServiceAction(formData: FormData) {
@@ -366,6 +366,8 @@ export async function createServiceAction(formData: FormData) {
   if (!parsed.success) {
     redirect("/servis/kabul?hata=validation");
   }
+
+  let serviceId = "";
 
   try {
     const { customer, vehicle } = await upsertCustomerAndVehicle({
@@ -395,6 +397,7 @@ export async function createServiceAction(formData: FormData) {
       musteriTalepleri: parsed.data.talepler,
       musteriyeNot: getOptionalString(formData, "musteriyeNot"),
     });
+    serviceId = service.id;
 
     await db.servisDurumGecmisi.create({
       data: {
@@ -404,14 +407,14 @@ export async function createServiceAction(formData: FormData) {
         yapan: process.env.ADMIN_USERNAME ?? "kivanc",
       },
     });
-
-    revalidateServiceTags();
-    revalidateServicePaths(service.id);
-    redirect(`/servis/${service.id}`);
   } catch (error) {
     console.error("Servis kabul kaydi olusturulamadi", error);
     redirect("/servis/kabul?hata=save");
   }
+
+  revalidateServiceTags();
+  revalidateServicePaths(serviceId);
+  redirect(`/servis/${serviceId}`);
 }
 
 export async function updateServiceStatusAction(formData: FormData) {
@@ -502,6 +505,9 @@ export async function addCollectionAction(formData: FormData) {
     },
   });
 
+  revalidateTag(DATA_TAGS.collections);
+  revalidateTag(DATA_TAGS.accounts);
+  revalidateTag(DATA_TAGS.dashboard);
   revalidateServiceTags();
   revalidateServicePaths(parsed.servisId);
 }

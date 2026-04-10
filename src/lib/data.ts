@@ -662,40 +662,12 @@ export async function getTechnicians() {
 export async function getDashboardData() {
   return unstable_cache(
     async () => {
-      const [services, customers, products, expenses] = await Promise.all([
+      const [services, expenses] = await Promise.all([
         db.servis.findMany({
           where: { deletedAt: null },
           select: {
             durum: true,
             toplamKdvDahil: true,
-            arac: {
-              select: {
-                marka: true,
-              },
-            },
-            kalemler: {
-              select: {
-                ad: true,
-                satirToplami: true,
-              },
-            },
-          },
-        }),
-        db.musteri.findMany({
-          where: { deletedAt: null },
-          select: {
-            bakiye: true,
-          },
-        }),
-        db.urunHizmet.findMany({
-          select: {
-            satisFiyatiKdvDahil: true,
-            kalanMiktar: true,
-            kategori: {
-              select: {
-                ad: true,
-              },
-            },
           },
         }),
         db.masraf.findMany({
@@ -708,29 +680,6 @@ export async function getDashboardData() {
       const totalRevenue = services.reduce((sum, item) => sum + toNumber(item.toplamKdvDahil), 0);
       const totalExpenses = expenses.reduce((sum, item) => sum + toNumber(item.tutar), 0);
 
-      const markaMap = new Map<string, number>();
-      const urunMap = new Map<string, number>();
-
-      services.forEach((service) => {
-        const serviceTotal = toNumber(service.toplamKdvDahil);
-        const vehicleName = service.arac?.marka || "Belirtilmedi";
-        markaMap.set(vehicleName, (markaMap.get(vehicleName) ?? 0) + serviceTotal);
-
-        service.kalemler.forEach((item) => {
-          urunMap.set(item.ad, (urunMap.get(item.ad) ?? 0) + toNumber(item.satirToplami));
-        });
-      });
-
-      const kategoriMap = new Map<string, number>();
-      products.forEach((product) => {
-        const category = product.kategori?.ad || "Kategorisiz";
-        kategoriMap.set(
-          category,
-          (kategoriMap.get(category) ?? 0) +
-            toNumber(product.satisFiyatiKdvDahil) * toNumber(product.kalanMiktar),
-        );
-      });
-
       return {
         kpis: {
           gelir: totalRevenue,
@@ -740,25 +689,11 @@ export async function getDashboardData() {
           teslimEdilen: services.filter((item) => item.durum === "TESLIM_EDILDI").length,
           acikServis: services.filter((item) => item.durum !== "TESLIM_EDILDI").length,
         },
-        markaDagilimi: Array.from(markaMap.entries()).map(([name, value]) => ({ name, value })),
-        kategoriDagilimi: Array.from(kategoriMap.entries()).map(([name, value]) => ({ name, value })),
-        urunDagilimi: Array.from(urunMap.entries()).map(([name, value]) => ({ name, value })),
-        bakiyeDagilimi: [
-          { name: "Borclu", value: customers.filter((item) => toNumber(item.bakiye) > 0).length },
-          { name: "Alacakli", value: customers.filter((item) => toNumber(item.bakiye) < 0).length },
-          { name: "Bakiyesiz", value: customers.filter((item) => toNumber(item.bakiye) === 0).length },
-        ],
       };
     },
     ["dashboard"],
     {
-      tags: [
-        DATA_TAGS.dashboard,
-        DATA_TAGS.services,
-        DATA_TAGS.customers,
-        DATA_TAGS.products,
-        DATA_TAGS.expenses,
-      ],
+      tags: [DATA_TAGS.dashboard],
       revalidate: 60,
     },
   )();

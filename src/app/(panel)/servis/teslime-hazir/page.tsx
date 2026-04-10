@@ -1,14 +1,5 @@
-import { ServiceListPage } from "@/components/service-list-page";
-import { getServices } from "@/lib/data";
+import { redirect } from "next/navigation";
 
 export default async function ReadyServicesPage() {
-  const services = await getServices("TESLIME_HAZIR");
-
-  return (
-    <ServiceListPage
-      title="Teslime Hazir"
-      description="Teslim formu tamamlanarak musterinin alinmasini bekleyen servisler."
-      services={services}
-    />
-  );
+  redirect("/servis?view=ready");
 }

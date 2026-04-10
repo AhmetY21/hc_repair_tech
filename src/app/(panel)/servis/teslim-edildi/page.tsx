@@ -1,14 +1,5 @@
-import { ServiceListPage } from "@/components/service-list-page";
-import { getServices } from "@/lib/data";
+import { redirect } from "next/navigation";
 
 export default async function DeliveredServicesPage() {
-  const services = await getServices("TESLIM_EDILDI");
-
-  return (
-    <ServiceListPage
-      title="Teslim Edildi"
-      description="Teslim formu, tahsilat ve kapanis adimlari tamamlanan servisler."
-      services={services}
-    />
-  );
+  redirect("/servis?view=delivered");
 }

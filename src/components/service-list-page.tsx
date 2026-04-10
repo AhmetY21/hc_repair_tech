@@ -25,10 +25,16 @@ export function ServiceListPage({
   title,
   description,
   services,
+  filters,
 }: {
   title: string;
-  description: string;
+  description?: string;
   services: ServiceItem[];
+  filters?: Array<{
+    label: string;
+    href: string;
+    active?: boolean;
+  }>;
 }) {
   return (
     <div className="space-y-6">
@@ -52,6 +58,18 @@ export function ServiceListPage({
           </>
         }
       />
+
+      {filters?.length ? (
+        <div className="flex flex-wrap gap-2">
+          {filters.map((filter) => (
+            <Button key={filter.href} asChild size="sm" variant={filter.active ? "default" : "secondary"}>
+              <Link href={filter.href} prefetch={false}>
+                {filter.label}
+              </Link>
+            </Button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid gap-4">
         {!services.length ? (

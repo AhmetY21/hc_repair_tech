@@ -2,7 +2,6 @@ import { Sparkles } from "lucide-react";
 
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -117,7 +116,6 @@ export default async function ClassicIntakePage({
             />
             <div className="flex flex-wrap gap-3">
               <FormSubmitButton idleLabel="Servisi Olustur" pendingLabel="Kaydediliyor..." />
-              <Button type="button" variant="secondary">PDF Onizleme</Button>
             </div>
           </CardContent>
         </Card>

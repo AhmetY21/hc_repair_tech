@@ -1,13 +1,7 @@
 import {
-  Activity,
-  Banknote,
-  BriefcaseBusiness,
   CarFront,
-  CalendarClock,
-  Gauge,
   LayoutDashboard,
   Settings,
-  ShoppingCart,
   Users,
   Wrench,
   Zap,
@@ -72,18 +66,8 @@ export const navigation: NavigationItem[] = [
   },
   {
     title: "Servis",
-    href: "/servis/kabul",
+    href: "/servis",
     icon: Wrench,
-    children: [
-      { title: "Servis Kabul", href: "/servis/kabul" },
-      { title: "Serviste Bugun", href: "/servis/bugun", badgeKey: "bugun" },
-      { title: "Servis Gecmisi", href: "/servis/gecmis", badgeKey: "gecmis" },
-      { title: "Servise Aliniyor", href: "/servis/alinan", badgeKey: "SERVISE_ALINIYOR" },
-      { title: "Bakim/Onarimda", href: "/servis/bakimda", badgeKey: "BAKIM_ONARIMDA" },
-      { title: "Parca Bekliyor", href: "/servis/parca-bekleyen", badgeKey: "PARCA_BEKLIYOR" },
-      { title: "Teslime Hazir", href: "/servis/teslime-hazir", badgeKey: "TESLIME_HAZIR" },
-      { title: "Teslim Edildi", href: "/servis/teslim-edildi", badgeKey: "TESLIM_EDILDI" },
-    ],
   },
   {
     title: "Musteri Kartlari",
@@ -94,32 +78,6 @@ export const navigation: NavigationItem[] = [
     title: "Arac Kartlari",
     href: "/araclar",
     icon: CarFront,
-  },
-  {
-    title: "Randevular",
-    href: "/randevular",
-    icon: CalendarClock,
-  },
-  {
-    title: "Alis-Satis",
-    href: "/stok/urunler",
-    icon: ShoppingCart,
-    children: [
-      { title: "Urun ve Hizmetler", href: "/stok/urunler" },
-      { title: "Satislar", href: "/stok/satislar" },
-      { title: "Alislar", href: "/stok/alislar" },
-      { title: "Raporlar", href: "/stok/raporlar" },
-    ],
-  },
-  {
-    title: "Muhasebe",
-    href: "/muhasebe/tahsilat",
-    icon: Banknote,
-    children: [
-      { title: "Tahsilat ve Odemeler", href: "/muhasebe/tahsilat" },
-      { title: "Kasa - Bankalar", href: "/muhasebe/kasalar" },
-      { title: "Masraflar", href: "/muhasebe/masraflar" },
-    ],
   },
   {
     title: "Ayarlar",
@@ -133,10 +91,3 @@ export const navigation: NavigationItem[] = [
     ],
   },
 ];
-
-export const dashboardCards = [
-  { key: "gelir", label: "Toplam Gelir", icon: Gauge },
-  { key: "servis", label: "Servis Cirosu", icon: Activity },
-  { key: "satis", label: "Satis Cirosu", icon: ShoppingCart },
-  { key: "gider", label: "Toplam Gider", icon: BriefcaseBusiness },
-] as const;

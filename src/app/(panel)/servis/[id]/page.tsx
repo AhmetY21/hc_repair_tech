@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Download, MessageCircleMore } from "lucide-react";
+import { ArrowRight, MessageCircleMore } from "lucide-react";
 
 import { DurumRozet } from "@/components/durum-rozet";
 import { PageHeader } from "@/components/page-header";
@@ -29,18 +29,6 @@ export default async function ServiceDetailPage({
         description={`${service.customer?.adSoyad} · ${service.vehicle?.marka} ${service.vehicle?.model}`}
         actions={
           <>
-            <Button variant="secondary" asChild>
-              <Link href={`/api/pdf/kabul/${service.id}`}>
-                <Download className="size-4" />
-                Kabul PDF
-              </Link>
-            </Button>
-            <Button variant="secondary" asChild>
-              <Link href={`/api/pdf/teslim/${service.id}`}>
-                <Download className="size-4" />
-                Teslim PDF
-              </Link>
-            </Button>
             <Button asChild>
               <a
                 href={encodeWhatsAppText(

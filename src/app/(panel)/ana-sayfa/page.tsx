@@ -1,6 +1,6 @@
-import { Download, FileText, Wrench } from "lucide-react";
+import Link from "next/link";
+import { Activity, BriefcaseBusiness, FileText, Wrench } from "lucide-react";
 
-import { DashboardCharts } from "@/components/dashboard-charts";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardData, getTodayServiceCards } from "@/lib/data";
 import { formatCurrency } from "@/lib/tr";
-import { dashboardCards } from "@/lib/constants";
 
 export default async function DashboardPage() {
   const [dashboard, serviceList] = await Promise.all([
@@ -16,61 +15,43 @@ export default async function DashboardPage() {
     getTodayServiceCards(),
   ]);
 
-  const chartConfig = [
-    {
-      title: "Arac Bazli Servis Cirosu",
-      description: "Markalara gore dagilim",
-      data: dashboard.markaDagilimi,
-    },
-    {
-      title: "Urun Kategorisi Satis Cirosu",
-      description: "Kategori bazli satis katkisi",
-      data: dashboard.kategoriDagilimi,
-    },
-    {
-      title: "Urun/Hizmet Satis Cirosu",
-      description: "En yuksek ciro yapan kalemler",
-      data: dashboard.urunDagilimi,
-    },
-    {
-      title: "Musteri Bakiye Dagilimi",
-      description: "Borclu / Alacakli / Bakiyesiz dagilimi",
-      data: dashboard.bakiyeDagilimi,
-    },
-  ];
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Ana Sayfa"
-        description="Bugun, bu hafta, bu ay ve bu yil perspektifinden servis ve finans hareketlerini tek panelde takip edin."
         actions={
-          <>
-            <Button variant="secondary">
-              <Download className="size-4" />
-              PDF Ozeti
-            </Button>
-            <Button>
+          <Button asChild>
+            <Link href="/servis/kabul" prefetch={false}>
               <FileText className="size-4" />
               Yeni Servis
-            </Button>
-          </>
+            </Link>
+          </Button>
         }
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {dashboardCards.map((card) => (
-          <StatCard
-            key={card.key}
-            icon={card.icon}
-            label={card.label}
-            value={formatCurrency(dashboard.kpis[card.key])}
-            hint={card.key === "gelir" ? `${dashboard.kpis.acikServis} acik servis` : undefined}
-          />
-        ))}
+        <StatCard
+          icon={Activity}
+          label="Toplam Gelir"
+          value={formatCurrency(dashboard.kpis.gelir)}
+          hint={`${dashboard.kpis.acikServis} acik servis`}
+        />
+        <StatCard
+          icon={Wrench}
+          label="Acik Servis"
+          value={dashboard.kpis.acikServis.toLocaleString("tr-TR")}
+        />
+        <StatCard
+          icon={FileText}
+          label="Teslim Edilen"
+          value={dashboard.kpis.teslimEdilen.toLocaleString("tr-TR")}
+        />
+        <StatCard
+          icon={BriefcaseBusiness}
+          label="Toplam Gider"
+          value={formatCurrency(dashboard.kpis.gider)}
+        />
       </div>
-
-      <DashboardCharts charts={chartConfig} />
 
       <Card>
         <CardHeader>
