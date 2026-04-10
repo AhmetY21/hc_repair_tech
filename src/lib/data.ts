@@ -448,18 +448,19 @@ export async function getServices(status?: string) {
   )();
 }
 
-export async function getAllServices() {
+export async function getAllServices(limit?: number) {
   return unstable_cache(
     async () => {
       const services = await db.servis.findMany({
         where: { deletedAt: null },
         select: serviceListSelect,
         orderBy: { girisTarihi: "desc" },
+        take: limit,
       });
 
       return services.map((service) => mapServiceListItem(service));
     },
-    ["services-all"],
+    ["services-all", String(limit ?? "all")],
     { tags: [DATA_TAGS.services], revalidate: 30 },
   )();
 }

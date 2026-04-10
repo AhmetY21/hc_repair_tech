@@ -1,34 +1,27 @@
 import { ServiceListPage } from "@/components/service-list-page";
-import { getAllServices, getServices } from "@/lib/data";
+import { getAllServices } from "@/lib/data";
 
 const serviceViews = {
   today: {
     label: "Bugun",
-    getServices: () => getServices(),
   },
   all: {
     label: "Tum Kayitlar",
-    getServices: () => getAllServices(),
   },
   incoming: {
     label: "Servise Aliniyor",
-    getServices: () => getServices("SERVISE_ALINIYOR"),
   },
   inProgress: {
     label: "Bakim/Onarimda",
-    getServices: () => getServices("BAKIM_ONARIMDA"),
   },
   waitingParts: {
     label: "Parca Bekliyor",
-    getServices: () => getServices("PARCA_BEKLIYOR"),
   },
   ready: {
     label: "Teslime Hazir",
-    getServices: () => getServices("TESLIME_HAZIR"),
   },
   delivered: {
     label: "Teslim Edildi",
-    getServices: () => getServices("TESLIM_EDILDI"),
   },
 } as const;
 
@@ -45,18 +38,17 @@ export default async function ServiceIndexPage({
 }) {
   const params = await searchParams;
   const activeView: ServiceViewKey = isServiceViewKey(params.view) ? params.view : "today";
-  const activeConfig = serviceViews[activeView];
-  const services = await activeConfig.getServices();
+  const services = await getAllServices(10);
 
   return (
     <ServiceListPage
       title="Servis"
-      description={activeConfig.label}
+      description={serviceViews[activeView].label}
       services={services}
+      initialFilter={activeView}
       filters={Object.entries(serviceViews).map(([key, config]) => ({
+        key: key as ServiceViewKey,
         label: config.label,
-        href: key === "today" ? "/servis" : `/servis?view=${key}`,
-        active: activeView === key,
       }))}
     />
   );

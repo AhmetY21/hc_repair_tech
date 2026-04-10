@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Download, Eye, FileText, MessageCircleMore } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { DurumRozet } from "@/components/durum-rozet";
 import { EmptyState } from "@/components/empty-state";
@@ -21,21 +24,70 @@ type ServiceItem = {
   vehicle?: { plaka: string; marka?: string; model?: string };
 };
 
+type ServiceFilterKey =
+  | "today"
+  | "all"
+  | "incoming"
+  | "inProgress"
+  | "waitingParts"
+  | "ready"
+  | "delivered";
+
+type ServiceFilter = {
+  key: ServiceFilterKey;
+  label: string;
+};
+
+function isTodayValue(value: string) {
+  const target = new Date(value);
+  const now = new Date();
+
+  return (
+    target.getFullYear() === now.getFullYear() &&
+    target.getMonth() === now.getMonth() &&
+    target.getDate() === now.getDate()
+  );
+}
+
+function matchesFilter(service: ServiceItem, filter: ServiceFilterKey) {
+  switch (filter) {
+    case "today":
+      return isTodayValue(service.girisTarihi);
+    case "incoming":
+      return service.durum === "SERVISE_ALINIYOR";
+    case "inProgress":
+      return service.durum === "BAKIM_ONARIMDA";
+    case "waitingParts":
+      return service.durum === "PARCA_BEKLIYOR";
+    case "ready":
+      return service.durum === "TESLIME_HAZIR";
+    case "delivered":
+      return service.durum === "TESLIM_EDILDI";
+    case "all":
+    default:
+      return true;
+  }
+}
+
 export function ServiceListPage({
   title,
   description,
   services,
   filters,
+  initialFilter = "today",
 }: {
   title: string;
   description?: string;
   services: ServiceItem[];
-  filters?: Array<{
-    label: string;
-    href: string;
-    active?: boolean;
-  }>;
+  filters?: ServiceFilter[];
+  initialFilter?: ServiceFilterKey;
 }) {
+  const [activeFilter, setActiveFilter] = useState<ServiceFilterKey>(initialFilter);
+  const filteredServices = useMemo(
+    () => services.filter((service) => matchesFilter(service, activeFilter)),
+    [activeFilter, services],
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -60,22 +112,29 @@ export function ServiceListPage({
       />
 
       {filters?.length ? (
-        <div className="flex flex-wrap gap-2">
-          {filters.map((filter) => (
-            <Button key={filter.href} asChild size="sm" variant={filter.active ? "default" : "secondary"}>
-              <Link href={filter.href} prefetch={false}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {filters.map((filter) => (
+              <Button
+                key={filter.key}
+                type="button"
+                size="sm"
+                variant={filter.key === activeFilter ? "default" : "secondary"}
+                onClick={() => setActiveFilter(filter.key)}
+              >
                 {filter.label}
-              </Link>
-            </Button>
-          ))}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">Son 10 kayit gosteriliyor</p>
         </div>
       ) : null}
 
       <div className="grid gap-4">
-        {!services.length ? (
+        {!filteredServices.length ? (
           <EmptyState
             title="Kayit bulunmuyor"
-            description="Bu listede gosterilecek servis kaydi yok. Yeni bir servis olusturdugunuzda burada gorunecek."
+            description="Secili sekmede gosterilecek servis kaydi yok. Yeni bir servis olusturdugunuzda burada gorunecek."
             action={
               <Button asChild>
                 <Link href="/servis/kabul" prefetch={false}>Yeni Servis Olustur</Link>
@@ -83,7 +142,7 @@ export function ServiceListPage({
             }
           />
         ) : null}
-        {services.map((service) => (
+        {filteredServices.map((service) => (
           <Card key={service.id}>
             <CardContent className="grid gap-4 p-6 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
               <div className="space-y-3">
