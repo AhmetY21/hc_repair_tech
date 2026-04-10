@@ -2,6 +2,7 @@
 
 import {
   MusteriTipi,
+  Prisma,
   ServisAltDurumu,
   ServisDurumu,
   TahsilatKaynak,
@@ -283,6 +284,35 @@ function revalidateServiceTags() {
   revalidateTag(DATA_TAGS.accounts);
 }
 
+function isServiceNoUniqueError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002" &&
+    String(error.meta?.target ?? "").includes("servisNo")
+  );
+}
+
+async function createServiceWithGeneratedNo(
+  data: Omit<Prisma.ServisUncheckedCreateInput, "servisNo">,
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await db.servis.create({
+        data: {
+          ...data,
+          servisNo: await generateServiceNo(),
+        },
+      });
+    } catch (error) {
+      if (!isServiceNoUniqueError(error) || attempt === 2) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Servis numarasi olusturulamadi.");
+}
+
 export async function createQuickIntakeAction(formData: FormData) {
   const parsed = quickIntakeSchema.safeParse({
     plaka: getString(formData, "plaka"),
@@ -293,35 +323,37 @@ export async function createQuickIntakeAction(formData: FormData) {
     redirect("/servis/hizli-kabul?hata=validation");
   }
 
-  const { customer, vehicle } = await upsertCustomerAndVehicle({
-    plaka: parsed.data.plaka,
-    musteriAdi: "Yeni Musteri",
-    telefon: parsed.data.telefon,
-  });
+  try {
+    const { customer, vehicle } = await upsertCustomerAndVehicle({
+      plaka: parsed.data.plaka,
+      musteriAdi: "Yeni Musteri",
+      telefon: parsed.data.telefon,
+    });
 
-  const service = await db.servis.create({
-    data: {
-      servisNo: await generateServiceNo(),
+    const service = await createServiceWithGeneratedNo({
       durum: ServisDurumu.SERVISE_ALINIYOR,
       musteriId: customer.id,
       aracId: vehicle.id,
       musteriTalepleri: parsed.data.isAciklamasi,
       servisDanismani: process.env.ADMIN_USERNAME ?? "kivanc",
-    },
-  });
+    });
 
-  await db.servisDurumGecmisi.create({
-    data: {
-      servisId: service.id,
-      yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
-      aciklama: "Hizli kabul ile servis kaydi olusturuldu.",
-      yapan: process.env.ADMIN_USERNAME ?? "kivanc",
-    },
-  });
+    await db.servisDurumGecmisi.create({
+      data: {
+        servisId: service.id,
+        yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
+        aciklama: "Hizli kabul ile servis kaydi olusturuldu.",
+        yapan: process.env.ADMIN_USERNAME ?? "kivanc",
+      },
+    });
 
-  revalidateServiceTags();
-  revalidateServicePaths(service.id);
-  redirect(`/servis/${service.id}`);
+    revalidateServiceTags();
+    revalidateServicePaths(service.id);
+    redirect(`/servis/${service.id}`);
+  } catch (error) {
+    console.error("Hizli kabul kaydi olusturulamadi", error);
+    redirect("/servis/hizli-kabul?hata=save");
+  }
 }
 
 export async function createServiceAction(formData: FormData) {
@@ -335,25 +367,24 @@ export async function createServiceAction(formData: FormData) {
     redirect("/servis/kabul?hata=validation");
   }
 
-  const { customer, vehicle } = await upsertCustomerAndVehicle({
-    plaka: parsed.data.plaka,
-    musteriAdi: parsed.data.musteriAdi,
-    telefon: parsed.data.telefon,
-    email: getOptionalString(formData, "email"),
-    vergiTcNo: getOptionalString(formData, "vergiTcNo"),
-    adres: getOptionalString(formData, "adres"),
-    sasiNo: getOptionalString(formData, "sasiNo"),
-    marka: getOptionalString(formData, "marka"),
-    seri: getOptionalString(formData, "seri"),
-    model: getOptionalString(formData, "model"),
-    modelYili: parseOptionalInt(getString(formData, "modelYili")),
-    yakitTipi: mapFuelType(getOptionalString(formData, "yakitTipi")),
-    vitesTipi: mapTransmissionType(getOptionalString(formData, "vitesTipi")),
-  });
+  try {
+    const { customer, vehicle } = await upsertCustomerAndVehicle({
+      plaka: parsed.data.plaka,
+      musteriAdi: parsed.data.musteriAdi,
+      telefon: parsed.data.telefon,
+      email: getOptionalString(formData, "email"),
+      vergiTcNo: getOptionalString(formData, "vergiTcNo"),
+      adres: getOptionalString(formData, "adres"),
+      sasiNo: getOptionalString(formData, "sasiNo"),
+      marka: getOptionalString(formData, "marka"),
+      seri: getOptionalString(formData, "seri"),
+      model: getOptionalString(formData, "model"),
+      modelYili: parseOptionalInt(getString(formData, "modelYili")),
+      yakitTipi: mapFuelType(getOptionalString(formData, "yakitTipi")),
+      vitesTipi: mapTransmissionType(getOptionalString(formData, "vitesTipi")),
+    });
 
-  const service = await db.servis.create({
-    data: {
-      servisNo: await generateServiceNo(),
+    const service = await createServiceWithGeneratedNo({
       durum: ServisDurumu.SERVISE_ALINIYOR,
       musteriId: customer.id,
       aracId: vehicle.id,
@@ -363,21 +394,24 @@ export async function createServiceAction(formData: FormData) {
       acilisYakitOrani: parseOptionalInt(getString(formData, "acilisYakitOrani")),
       musteriTalepleri: parsed.data.talepler,
       musteriyeNot: getOptionalString(formData, "musteriyeNot"),
-    },
-  });
+    });
 
-  await db.servisDurumGecmisi.create({
-    data: {
-      servisId: service.id,
-      yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
-      aciklama: "Klasik servis kabul formu ile kayit olusturuldu.",
-      yapan: process.env.ADMIN_USERNAME ?? "kivanc",
-    },
-  });
+    await db.servisDurumGecmisi.create({
+      data: {
+        servisId: service.id,
+        yeniDurum: ServisDurumu.SERVISE_ALINIYOR,
+        aciklama: "Klasik servis kabul formu ile kayit olusturuldu.",
+        yapan: process.env.ADMIN_USERNAME ?? "kivanc",
+      },
+    });
 
-  revalidateServiceTags();
-  revalidateServicePaths(service.id);
-  redirect(`/servis/${service.id}`);
+    revalidateServiceTags();
+    revalidateServicePaths(service.id);
+    redirect(`/servis/${service.id}`);
+  } catch (error) {
+    console.error("Servis kabul kaydi olusturulamadi", error);
+    redirect("/servis/kabul?hata=save");
+  }
 }
 
 export async function updateServiceStatusAction(formData: FormData) {

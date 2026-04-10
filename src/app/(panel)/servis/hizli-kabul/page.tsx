@@ -1,7 +1,7 @@
 import { Rocket } from "lucide-react";
 
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,7 @@ export default async function QuickIntakePage({
 }) {
   const params = await searchParams;
   const hasValidationError = params.hata === "validation";
+  const hasSaveError = params.hata === "save";
 
   return (
     <div className="space-y-6">
@@ -24,6 +25,11 @@ export default async function QuickIntakePage({
       {hasValidationError ? (
         <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
           Kayit olusturulamadi. Telefon en az 10 hane ve is tanimi en az 5 karakter olmali.
+        </p>
+      ) : null}
+      {hasSaveError ? (
+        <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
+          Kayit sirasinda teknik bir hata olustu. Lutfen tekrar deneyin.
         </p>
       ) : null}
 
@@ -58,10 +64,13 @@ export default async function QuickIntakePage({
               className="min-h-40 text-lg"
               required
             />
-            <Button type="submit" size="lg" className="w-full">
-              <Rocket className="size-5" />
-              Servise Al
-            </Button>
+            <FormSubmitButton
+              size="lg"
+              className="w-full"
+              idleLabel="Servise Al"
+              pendingLabel="Kaydediliyor..."
+              idleIcon={<Rocket className="size-5" />}
+            />
           </form>
         </CardContent>
       </Card>

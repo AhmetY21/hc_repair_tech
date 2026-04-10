@@ -1,5 +1,6 @@
 import { Sparkles } from "lucide-react";
 
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ export default async function ClassicIntakePage({
 }) {
   const params = await searchParams;
   const hasValidationError = params.hata === "validation";
+  const hasSaveError = params.hata === "save";
 
   return (
     <div className="space-y-6">
@@ -26,6 +28,11 @@ export default async function ClassicIntakePage({
       {hasValidationError ? (
         <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
           Kayit olusturulamadi. Telefon en az 10 hane, talep metni en az 5 karakter olmali.
+        </p>
+      ) : null}
+      {hasSaveError ? (
+        <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
+          Kayit sirasinda teknik bir hata olustu. Lutfen tekrar deneyin.
         </p>
       ) : null}
 
@@ -109,7 +116,7 @@ export default async function ClassicIntakePage({
               defaultValue="Islem oncesi ek tespit olursa musteri onayi alinacaktir."
             />
             <div className="flex flex-wrap gap-3">
-              <Button type="submit">Servisi Olustur</Button>
+              <FormSubmitButton idleLabel="Servisi Olustur" pendingLabel="Kaydediliyor..." />
               <Button type="button" variant="secondary">PDF Onizleme</Button>
             </div>
           </CardContent>
