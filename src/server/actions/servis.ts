@@ -9,7 +9,7 @@ import {
   VitesTipi,
   YakitTipi,
 } from "@prisma/client";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -152,24 +152,19 @@ async function generateServiceNo() {
 }
 
 async function findCustomerByPhone(phone: string) {
-  const candidates = await db.musteri.findMany({
+  return db.musteri.findFirst({
     where: {
       deletedAt: null,
-      telefon: {
-        not: null,
-      },
+      telefon: phone,
     },
     orderBy: { createdAt: "desc" },
-    take: 100,
   });
-
-  return candidates.find((candidate) => normalizePhone(candidate.telefon ?? "") === phone) ?? null;
 }
 
 async function upsertCustomerAndVehicle(
   input: {
     plaka: string;
-    musteriAdi: string;
+    musteriAdi?: string | null;
     telefon: string;
     email?: string | null;
     vergiTcNo?: string | null;
@@ -185,7 +180,7 @@ async function upsertCustomerAndVehicle(
 ) {
   const normalizedPlate = normalizePlate(input.plaka);
   const normalizedPhone = normalizePhone(input.telefon);
-  const { ad, soyad } = splitCustomerName(input.musteriAdi);
+  const customerIdentity = input.musteriAdi ? splitCustomerName(input.musteriAdi) : null;
 
   const existingVehicle = await db.arac.findUnique({
     where: { plaka: normalizedPlate },
@@ -201,8 +196,12 @@ async function upsertCustomerAndVehicle(
       ? await db.musteri.update({
           where: { id: existingCustomer.id },
           data: {
-            ad,
-            soyad,
+            ...(customerIdentity
+              ? {
+                  ad: customerIdentity.ad,
+                  soyad: customerIdentity.soyad,
+                }
+              : {}),
             telefon: normalizedPhone || input.telefon,
             email: input.email,
             vergiTcNo: input.vergiTcNo,
@@ -213,8 +212,8 @@ async function upsertCustomerAndVehicle(
           data: {
             musteriKodu: await generateCustomerCode(),
             tip: MusteriTipi.BIREYSEL,
-            ad,
-            soyad,
+            ad: customerIdentity?.ad ?? "Musteri",
+            soyad: customerIdentity?.soyad ?? null,
             telefon: normalizedPhone || input.telefon,
             email: input.email,
             vergiTcNo: input.vergiTcNo,
@@ -224,20 +223,29 @@ async function upsertCustomerAndVehicle(
 
   const vehicle =
     existingVehicle
-      ? await db.arac.update({
-          where: { id: existingVehicle.id },
-          data: {
-            musteriId: customer.id,
-            plaka: normalizedPlate,
-            sasiNo: input.sasiNo,
-            marka: input.marka,
-            seri: input.seri,
-            model: input.model,
-            modelYili: input.modelYili,
-            yakitTipi: input.yakitTipi,
-            vitesTipi: input.vitesTipi,
-          },
-        })
+      ? customer.id === existingVehicle.musteriId &&
+        input.sasiNo == null &&
+        input.marka == null &&
+        input.seri == null &&
+        input.model == null &&
+        input.modelYili == null &&
+        input.yakitTipi == null &&
+        input.vitesTipi == null
+        ? existingVehicle
+        : await db.arac.update({
+            where: { id: existingVehicle.id },
+            data: {
+              musteriId: customer.id,
+              plaka: normalizedPlate,
+              sasiNo: input.sasiNo,
+              marka: input.marka,
+              seri: input.seri,
+              model: input.model,
+              modelYili: input.modelYili,
+              yakitTipi: input.yakitTipi,
+              vitesTipi: input.vitesTipi,
+            },
+          })
       : await db.arac.create({
           data: {
             musteriId: customer.id,
@@ -255,26 +263,8 @@ async function upsertCustomerAndVehicle(
   return { customer, vehicle };
 }
 
-function revalidateServicePaths(serviceId?: string) {
-  revalidatePath("/ana-sayfa");
-  revalidatePath("/musteriler");
-  revalidatePath("/araclar");
-  revalidatePath("/servis");
-  revalidatePath("/servis/bugun");
-  revalidatePath("/servis/gecmis");
-  revalidatePath("/servis/kabul");
-  revalidatePath("/servis/hizli-kabul");
-  revalidatePath("/muhasebe/tahsilat");
-
-  if (serviceId) {
-    revalidatePath(`/servis/${serviceId}`);
-    revalidatePath(`/servis/${serviceId}/islemler`);
-    revalidatePath(`/servis/${serviceId}/kabul-formu`);
-    revalidatePath(`/servis/${serviceId}/teslim-formu`);
-  }
-}
-
 function revalidateServiceTags() {
+  revalidateTag(DATA_TAGS.dashboard);
   revalidateTag(DATA_TAGS.sidebar);
   revalidateTag(DATA_TAGS.services);
   revalidateTag(DATA_TAGS.customers);
@@ -325,7 +315,6 @@ export async function createQuickIntakeAction(formData: FormData) {
   try {
     const { customer, vehicle } = await upsertCustomerAndVehicle({
       plaka: parsed.data.plaka,
-      musteriAdi: "Yeni Musteri",
       telefon: parsed.data.telefon,
     });
 
@@ -352,7 +341,6 @@ export async function createQuickIntakeAction(formData: FormData) {
   }
 
   revalidateServiceTags();
-  revalidateServicePaths(serviceId);
   redirect(`/servis/${serviceId}`);
 }
 
@@ -413,59 +401,65 @@ export async function createServiceAction(formData: FormData) {
   }
 
   revalidateServiceTags();
-  revalidateServicePaths(serviceId);
   redirect(`/servis/${serviceId}`);
 }
 
 export async function updateServiceStatusAction(formData: FormData) {
-  const parsed = statusSchema.parse({
-    servisId: getString(formData, "servisId"),
+  const servisId = getString(formData, "servisId");
+  const parsed = statusSchema.safeParse({
+    servisId,
     durum: getString(formData, "durum"),
     altDurum: getString(formData, "altDurum") || undefined,
     teknisyenId: getString(formData, "teknisyenId") || undefined,
   });
+  if (!parsed.success) {
+    redirect(servisId ? `/servis/${servisId}/islemler?hata=durum-validation` : "/servis?hata=durum-validation");
+  }
 
   const currentService = await db.servis.findUnique({
-    where: { id: parsed.servisId },
+    where: { id: parsed.data.servisId },
     select: { durum: true },
   });
 
   await db.servis.update({
-    where: { id: parsed.servisId },
+    where: { id: parsed.data.servisId },
     data: {
-      durum: parsed.durum,
-      altDurum: parsed.altDurum ?? null,
-      teknisyenId: parsed.teknisyenId || null,
+      durum: parsed.data.durum,
+      altDurum: parsed.data.altDurum ?? null,
+      teknisyenId: parsed.data.teknisyenId || null,
       teslimTarihi:
-        parsed.durum === ServisDurumu.TESLIM_EDILDI ? new Date() : undefined,
+        parsed.data.durum === ServisDurumu.TESLIM_EDILDI ? new Date() : undefined,
     },
   });
 
   await db.servisDurumGecmisi.create({
     data: {
-      servisId: parsed.servisId,
+      servisId: parsed.data.servisId,
       eskiDurum: currentService?.durum,
-      yeniDurum: parsed.durum,
-      altDurum: parsed.altDurum ?? null,
+      yeniDurum: parsed.data.durum,
+      altDurum: parsed.data.altDurum ?? null,
       aciklama: "Durum servis islemleri ekranindan guncellendi.",
       yapan: process.env.ADMIN_USERNAME ?? "kivanc",
     },
   });
 
   revalidateServiceTags();
-  revalidateServicePaths(parsed.servisId);
 }
 
 export async function addCollectionAction(formData: FormData) {
-  const parsed = paymentSchema.parse({
-    servisId: getString(formData, "servisId"),
+  const servisId = getString(formData, "servisId");
+  const parsed = paymentSchema.safeParse({
+    servisId,
     aciklama: getString(formData, "aciklama"),
     tutar: getString(formData, "tutar"),
     kasa: getString(formData, "kasa"),
   });
+  if (!parsed.success) {
+    redirect(servisId ? `/servis/${servisId}/islemler?hata=tahsilat-validation` : "/servis?hata=tahsilat-validation");
+  }
 
   const service = await db.servis.findUnique({
-    where: { id: parsed.servisId },
+    where: { id: parsed.data.servisId },
     select: { id: true, musteriId: true },
   });
 
@@ -474,7 +468,7 @@ export async function addCollectionAction(formData: FormData) {
   }
 
   const account = await db.kasa.findFirst({
-    where: { ad: parsed.kasa },
+    where: { ad: parsed.data.kasa },
     select: { id: true },
   });
 
@@ -482,7 +476,7 @@ export async function addCollectionAction(formData: FormData) {
     throw new Error("Tahsilat hesabi bulunamadi.");
   }
 
-  const amount = parseMoney(parsed.tutar);
+  const amount = parseMoney(parsed.data.tutar);
 
   await db.tahsilat.create({
     data: {
@@ -490,7 +484,7 @@ export async function addCollectionAction(formData: FormData) {
       musteriId: service.musteriId,
       kasaId: account.id,
       kaynak: TahsilatKaynak.SERVIS,
-      aciklama: parsed.aciklama,
+      aciklama: parsed.data.aciklama,
       tutar: amount,
     },
   });
@@ -500,7 +494,7 @@ export async function addCollectionAction(formData: FormData) {
       kasaId: account.id,
       tip: "TAHSILAT",
       referansId: service.id,
-      aciklama: parsed.aciklama,
+      aciklama: parsed.data.aciklama,
       tutar: amount,
     },
   });
@@ -509,5 +503,4 @@ export async function addCollectionAction(formData: FormData) {
   revalidateTag(DATA_TAGS.accounts);
   revalidateTag(DATA_TAGS.dashboard);
   revalidateServiceTags();
-  revalidateServicePaths(parsed.servisId);
 }

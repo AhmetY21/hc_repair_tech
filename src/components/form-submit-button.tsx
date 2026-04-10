@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { LoaderCircle } from "lucide-react";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
 
@@ -29,7 +30,7 @@ export function FormSubmitButton({
       aria-disabled={disabled || pending}
       {...props}
     >
-      {pending ? (pendingIcon ?? idleIcon) : idleIcon}
+      {pending ? (pendingIcon ?? <LoaderCircle className="size-4 animate-spin" />) : idleIcon}
       {pending ? pendingLabel : idleLabel}
     </Button>
   );

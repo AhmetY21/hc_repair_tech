@@ -77,7 +77,7 @@ function mapService(service: any) {
           adSoyad: service.teknisyen.adSoyad,
         }
       : undefined,
-    kalemler: service.kalemler.map((item: any) => ({
+    kalemler: (service.kalemler ?? []).map((item: any) => ({
       ad: item.ad,
       birim: item.birim,
       kdvOrani: toNumber(item.kdvOrani),
@@ -85,21 +85,21 @@ function mapService(service: any) {
       indirim: toNumber(item.indirimTutari),
       toplam: toNumber(item.satirToplami),
     })),
-    hariciKalemler: service.hariciKalemler.map((item: any) => ({
+    hariciKalemler: (service.hariciKalemler ?? []).map((item: any) => ({
       ad: item.ad,
       tip: item.tip,
       miktar: toNumber(item.miktar),
       maliyet: toNumber(item.maliyet),
       tedarikci: item.tedarikci,
     })),
-    tahsilatlar: service.tahsilatlar.map((payment: any) => ({
+    tahsilatlar: (service.tahsilatlar ?? []).map((payment: any) => ({
       id: payment.id,
       tarih: payment.tarih.toISOString(),
       aciklama: payment.aciklama,
       kasa: payment.kasa.ad,
       tutar: toNumber(payment.tutar),
     })),
-    statusHistory: service.durumGecmisi.map((history: any) => ({
+    statusHistory: (service.durumGecmisi ?? []).map((history: any) => ({
       id: history.id,
       eskiDurum: history.eskiDurum,
       yeniDurum: history.yeniDurum,
@@ -159,6 +159,87 @@ const serviceListSelect = {
       marka: true,
       model: true,
     },
+  },
+} as const;
+
+const serviceDetailSelect = {
+  id: true,
+  servisNo: true,
+  durum: true,
+  altDurum: true,
+  girisTarihi: true,
+  teslimTarihi: true,
+  musteriId: true,
+  aracId: true,
+  teknisyenId: true,
+  servisDanismani: true,
+  araciGetiren: true,
+  acilisKm: true,
+  acilisYakitOrani: true,
+  kapanisKm: true,
+  kapanisYakitOrani: true,
+  musteriTalepleri: true,
+  musteriyeNot: true,
+  icNotlar: true,
+  toplamKdvHaric: true,
+  toplamKdv: true,
+  toplamKdvDahil: true,
+  musteri: {
+    select: {
+      id: true,
+      ad: true,
+      soyad: true,
+      ticariUnvan: true,
+      telefon: true,
+    },
+  },
+  arac: {
+    select: {
+      id: true,
+      plaka: true,
+      marka: true,
+      model: true,
+    },
+  },
+  teknisyen: {
+    select: {
+      id: true,
+      adSoyad: true,
+    },
+  },
+  kalemler: {
+    select: {
+      ad: true,
+      birim: true,
+      kdvOrani: true,
+      miktar: true,
+      indirimTutari: true,
+      satirToplami: true,
+    },
+  },
+  tahsilatlar: {
+    select: {
+      id: true,
+      tarih: true,
+      aciklama: true,
+      tutar: true,
+      kasa: {
+        select: {
+          ad: true,
+        },
+      },
+    },
+  },
+  durumGecmisi: {
+    select: {
+      id: true,
+      eskiDurum: true,
+      yeniDurum: true,
+      altDurum: true,
+      yapan: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
   },
 } as const;
 
@@ -468,15 +549,7 @@ export async function getAllServices(limit?: number) {
 export async function getServiceById(id: string) {
   const service = await db.servis.findUnique({
     where: { id },
-    include: {
-      musteri: true,
-      arac: true,
-      teknisyen: true,
-      kalemler: true,
-      hariciKalemler: true,
-      tahsilatlar: { include: { kasa: true } },
-      durumGecmisi: { orderBy: { createdAt: "desc" } },
-    },
+    select: serviceDetailSelect,
   });
 
   return service ? mapService(service) : null;

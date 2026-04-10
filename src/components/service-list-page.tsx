@@ -172,7 +172,7 @@ export function ServiceListPage({
 
               <div className="flex flex-wrap gap-2">
                 <Button variant="secondary" asChild>
-                  <Link href={`/servis/${service.id}`} prefetch={false}>
+                  <Link href={`/servis/${service.id}`}>
                     <Eye className="size-4" />
                     Detay
                   </Link>

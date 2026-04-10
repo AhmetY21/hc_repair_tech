@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -11,10 +11,13 @@ import { addCollectionAction, updateServiceStatusAction } from "@/server/actions
 
 export default async function ServiceOperationsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ hata?: string }>;
 }) {
   const { id } = await params;
+  const paramsState = await searchParams;
   const [service, technicians, accounts] = await Promise.all([
     getServiceById(id),
     getTechnicians(),
@@ -23,12 +26,25 @@ export default async function ServiceOperationsPage({
 
   if (!service) notFound();
 
+  const hasStatusValidationError = paramsState.hata === "durum-validation";
+  const hasCollectionValidationError = paramsState.hata === "tahsilat-validation";
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Servis Islemleri"
         description={`${service.servisNo} icin durum akisi, teknisyen ve tahsilat yonetimi`}
       />
+      {hasStatusValidationError ? (
+        <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
+          Durum guncellenemedi. Lutfen zorunlu alanlari kontrol edin.
+        </p>
+      ) : null}
+      {hasCollectionValidationError ? (
+        <p className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-rose-200">
+          Tahsilat kaydedilemedi. Kasa secimi ve tutar bilgisi zorunlu.
+        </p>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
@@ -62,7 +78,11 @@ export default async function ServiceOperationsPage({
                   </option>
                 ))}
               </Select>
-              <Button type="submit" className="w-full">Durumu Guncelle</Button>
+              <FormSubmitButton
+                className="w-full"
+                idleLabel="Durumu Guncelle"
+                pendingLabel="Durum Guncelleniyor..."
+              />
             </form>
           </CardContent>
         </Card>
@@ -74,17 +94,28 @@ export default async function ServiceOperationsPage({
           <CardContent>
             <form action={addCollectionAction} className="space-y-3">
               <input type="hidden" name="servisId" value={service.id} />
-              <Input name="aciklama" defaultValue={`${service.servisNo} - ${service.vehicle?.plaka}`} />
-              <Input name="tutar" placeholder="Tutar" />
-              <Select name="kasa" defaultValue={accounts[0]?.ad}>
+              <Input name="aciklama" defaultValue={`${service.servisNo} - ${service.vehicle?.plaka}`} required />
+              <Input name="tutar" placeholder="Tutar" inputMode="decimal" required />
+              <Select name="kasa" defaultValue={accounts[0]?.ad ?? ""} required>
+                <option value="" disabled>
+                  Kasa secin
+                </option>
                 {accounts.map((account) => (
                   <option key={account.id} value={account.ad}>
                     {account.ad}
                   </option>
                 ))}
               </Select>
+              {!accounts.length ? (
+                <p className="text-sm text-[var(--text-muted)]">Tahsilat icin once bir kasa veya banka hesabi ekleyin.</p>
+              ) : null}
               <Textarea name="not" placeholder="Ic not" />
-              <Button type="submit" className="w-full">Tahsilat Kaydet</Button>
+              <FormSubmitButton
+                className="w-full"
+                idleLabel="Tahsilat Kaydet"
+                pendingLabel="Tahsilat Kaydediliyor..."
+                disabled={!accounts.length}
+              />
             </form>
           </CardContent>
         </Card>
